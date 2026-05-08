@@ -1,11 +1,141 @@
 /**
- * 首页核心逻辑
+ * 首页核心逻辑 - 使用后端API版本
  * 包含所有功能模块的数据管理和交互
  */
 
 const { createApp } = Vue;
 
-// 省份城市数据（与profile.js保持一致）
+// API服务
+const ApiService = {
+    baseUrl: '/api',
+    
+    getToken() {
+        return localStorage.getItem('token');
+    },
+    
+    async request(method, url, data = null, isFormData = false) {
+        const headers = {
+            'Authorization': `Bearer ${this.getToken()}`
+        };
+        
+        if (!isFormData) {
+            headers['Content-Type'] = 'application/json';
+        }
+        
+        const options = {
+            method,
+            headers,
+            body: isFormData ? data : (data ? JSON.stringify(data) : null)
+        };
+        
+        try {
+            const response = await fetch(`${this.baseUrl}${url}`, options);
+            return await response.json();
+        } catch (error) {
+            console.error('API request failed:', error);
+            return { error: '网络错误' };
+        }
+    },
+    
+    // 用户相关
+    async getUser() {
+        return this.request('GET', '/user');
+    },
+    
+    async updateUser(formData) {
+        return this.request('POST', '/user', formData, true);
+    },
+    
+    // 伴侣相关
+    async getPartner() {
+        return this.request('GET', '/partner');
+    },
+    
+    async bindPartner(username) {
+        return this.request('POST', '/partner/bind', { partnerUsername: username });
+    },
+    
+    async unbindPartner() {
+        return this.request('POST', '/partner/unbind');
+    },
+    
+    // 照片相关
+    async getPhotos(category = null) {
+        const url = category ? `/photos?category=${category}` : '/photos';
+        return this.request('GET', url);
+    },
+    
+    async uploadPhoto(formData) {
+        return this.request('POST', '/photos', formData, true);
+    },
+    
+    async getPhotoCategories() {
+        return this.request('GET', '/photos/categories');
+    },
+    
+    // 日记相关
+    async getDiaries() {
+        return this.request('GET', '/diaries');
+    },
+    
+    async addDiary(content) {
+        return this.request('POST', '/diaries', { content });
+    },
+    
+    // 语录相关
+    async getQuotes() {
+        return this.request('GET', '/quotes');
+    },
+    
+    async addQuote(content) {
+        return this.request('POST', '/quotes', { content });
+    },
+    
+    // 心愿相关
+    async getWishes() {
+        return this.request('GET', '/wishes');
+    },
+    
+    async addWish(text) {
+        return this.request('POST', '/wishes', { text });
+    },
+    
+    async updateWish(id, completed) {
+        return this.request('PUT', `/wishes/${id}`, { completed });
+    },
+    
+    async deleteWish(id) {
+        return this.request('DELETE', `/wishes/${id}`);
+    },
+    
+    // 纪念日相关
+    async getAnniversaries() {
+        return this.request('GET', '/anniversaries');
+    },
+    
+    async addAnniversary(name, date) {
+        return this.request('POST', '/anniversaries', { name, date });
+    },
+    
+    // 宠物相关
+    async getPet() {
+        return this.request('GET', '/pet');
+    },
+    
+    async createPet(name, icon, element, elementName) {
+        return this.request('POST', '/pet', { name, icon, element, elementName });
+    },
+    
+    async updatePet(petData) {
+        return this.request('PUT', '/pet', petData);
+    },
+    
+    async getPartnerPet() {
+        return this.request('GET', '/pet/partner');
+    }
+};
+
+// 省份城市数据
 const provinceCityData = {
     '北京市': ['北京市'], '上海市': ['上海市'], '天津市': ['天津市'], '重庆市': ['重庆市'],
     '河北省': ['石家庄市', '唐山市', '秦皇岛市', '邯郸市', '邢台市', '保定市'],
@@ -19,13 +149,13 @@ createApp({
     data() {
         return {
             // 用户信息
-            currentUser: null,
+            currentUser: JSON.parse(localStorage.getItem('user') || '{}'),
             userProfile: {},
-            partner: null,  // 绑定的伴侣用户
+            partner: null,
             provinces: Object.keys(provinceCityData),
             
             // 纪念日
-            anniversaryData: null,
+            anniversaryData: { startDate: new Date().toISOString().split('T')[0], customDates: [] },
             anniversaryDays: 0,
             currentTime: { hours: '00', minutes: '00', seconds: '00' },
             customAnniversaries: [],
@@ -33,20 +163,27 @@ createApp({
             
             // 相册
             albumData: [],
-            albumCategories: ['全部', '默认相册'],
+            albumCategories: ['全部'],
             currentAlbumCategory: '全部',
             viewingPhoto: '',
+            selectedPhotos: [],
+            uploadAlbumCategory: '全部',
+            newCategoryName: '',
             
             // 语录
             quotes: [],
             currentQuoteIndex: 0,
             quoteTimer: null,
+            newQuote: '',
             
             // 日记
             diaries: [],
+            diaryForm: { content: '' },
+            editingDiary: null,
             
             // 心愿清单
             wishlist: [],
+            newWish: '',
             
             // 五行宠物配置
             petElements: [
@@ -76,8 +213,7 @@ createApp({
                 level: 1, exp: 0, maxExp: 100,
                 hunger: 100, cleanliness: 100, mood: 100, energy: 100,
                 feedStatus: { breakfast: false, lunch: false, dinner: false },
-                lastFeedReset: '',
-                cleanStatus: { cleaned: false, lastCleanReset: '' },
+                cleanStatus: { cleaned: false },
                 gold: 100
             },
             petGameView: 'select',
@@ -88,7 +224,8 @@ createApp({
                 description: '你踏入了一片神秘的森林...',
                 enemy: null,
                 options: [],
-                result: null
+                result: null,
+                currentZoneData: null
             },
             
             // 对战相关
@@ -104,7 +241,7 @@ createApp({
                 { name: '水晶湖泊', description: '平静的湖面倒映着天空，水晶般的光芒在水面闪烁...', enemies: ['💧 水晶蟹', '🐚 珍珠蚌'], options: ['环湖漫步', '下水探索', '湖边休息'] }
             ],
             
-            // 五行相克配置：金克木、木克土、土克水、水克火、火克金
+            // 五行相克配置
             elementalAdvantage: {
                 wood: { weakTo: 'metal', strongTo: 'earth' },
                 fire: { weakTo: 'water', strongTo: 'metal' },
@@ -137,15 +274,9 @@ createApp({
             // 表单数据
             editProfileForm: { avatar: '', nickname: '', age: null, province: '', city: '', bio: '' },
             anniversaryForm: { name: '', date: '' },
-            newCategoryName: '',
-            newQuote: '',
-            diaryForm: { content: '' },
-            editingDiaryIndex: -1,
-            newWish: '',
             passwordForm: { oldPassword: '', newPassword: '', confirmPassword: '' },
             passwordError: '',
-            uploadAlbumCategory: '全部',
-            selectedPhotos: [],
+            
             // 情侣绑定数据
             coupleUsername: '',
             coupleBindError: '',
@@ -177,7 +308,7 @@ createApp({
             return this.albumData.filter(p => p.category === this.currentAlbumCategory);
         },
         currentQuote() {
-            return this.quotes[this.currentQuoteIndex] || '暂无语录';
+            return this.quotes[this.currentQuoteIndex]?.content || '暂无语录';
         },
         filteredPetOptions() {
             return this.petOptions.filter(p => p.element === this.selectedElement);
@@ -199,100 +330,145 @@ createApp({
         petLevel() {
             return this.pet.level || 1;
         },
-        petAffection() {
-            return Math.floor(((this.pet.mood || 50) + (this.pet.exp || 0)) / 10);
+        petGold() {
+            return this.pet.gold || 0;
         }
     },
     methods: {
         // 初始化数据
-        initData() {
-            const username = this.currentUser.username;
-            this.userProfile = this.currentUser.profile || {};
-            this.anniversaryData = Storage.anniversary.get(username) || { startDate: new Date().toISOString().split('T')[0], customDates: [] };
-            this.albumData = Storage.album.getAll(username);
-            this.quotes = Storage.quotes.getAll(username);
-            this.diaries = Storage.diary.getAll(username);
-            this.wishlist = Storage.wishlist.getAll(username);
-            this.loadPet();
-            this.loadPartner();
-            this.loadPartnerPet();
-            
-            // 提取相册分类
-            const categories = new Set(this.albumData.map(p => p.category));
-            this.albumCategories = ['全部', ...categories, '默认相册'];
-            
+        async initData() {
+            await Promise.all([
+                this.loadUserProfile(),
+                this.loadPartner(),
+                this.loadPhotos(),
+                this.loadQuotes(),
+                this.loadDiaries(),
+                this.loadWishes(),
+                this.loadPet(),
+                this.loadPartnerPet()
+            ]);
             this.calculateAnniversary();
         },
         
+        // 加载用户资料
+        async loadUserProfile() {
+            const result = await ApiService.getUser();
+            if (result.error) {
+                console.error('Failed to load user:', result.error);
+                return;
+            }
+            this.userProfile = result;
+        },
+        
+        // 加载伴侣
+        async loadPartner() {
+            const result = await ApiService.getPartner();
+            if (result.error) {
+                console.error('Failed to load partner:', result.error);
+                return;
+            }
+            this.partner = result;
+        },
+        
+        // 加载照片
+        async loadPhotos() {
+            const result = await ApiService.getPhotos();
+            if (result.error) {
+                console.error('Failed to load photos:', result.error);
+                return;
+            }
+            this.albumData = result;
+            const categories = new Set(result.map(p => p.category));
+            this.albumCategories = ['全部', ...categories];
+        },
+        
+        // 加载语录
+        async loadQuotes() {
+            const result = await ApiService.getQuotes();
+            if (result.error) {
+                console.error('Failed to load quotes:', result.error);
+                return;
+            }
+            this.quotes = result;
+        },
+        
+        // 加载日记
+        async loadDiaries() {
+            const result = await ApiService.getDiaries();
+            if (result.error) {
+                console.error('Failed to load diaries:', result.error);
+                return;
+            }
+            this.diaries = result;
+        },
+        
+        // 加载心愿
+        async loadWishes() {
+            const result = await ApiService.getWishes();
+            if (result.error) {
+                console.error('Failed to load wishes:', result.error);
+                return;
+            }
+            this.wishlist = result;
+        },
+        
         // 加载宠物数据
-        loadPet() {
-            const username = this.currentUser.username;
-            const savedPet = Storage.pet.get(username);
-            if (savedPet && savedPet.id) {
-                this.pet = savedPet;
-                if (!this.pet.cleanStatus) {
-                    this.pet.cleanStatus = { cleaned: false, lastCleanReset: new Date().toDateString() };
-                }
-                if (typeof this.pet.gold !== 'number') {
-                    this.pet.gold = 100;
-                }
-                this.petGameView = 'main';
-            } else {
+        async loadPet() {
+            const result = await ApiService.getPet();
+            if (result.error || !result) {
                 this.pet = {
                     id: '', name: '', icon: '', element: '', elementName: '',
                     level: 1, exp: 0, maxExp: 100,
                     hunger: 100, cleanliness: 100, mood: 100, energy: 100,
                     feedStatus: { breakfast: false, lunch: false, dinner: false },
-                    lastFeedReset: '',
-                    cleanStatus: { cleaned: false, lastCleanReset: '' },
+                    cleanStatus: { cleaned: false },
                     gold: 100
                 };
                 this.petGameView = 'select';
+                return;
             }
-            this.checkFeedReset();
-            this.checkCleanReset();
+            
+            this.pet = {
+                ...result,
+                feedStatus: result.feedStatus || { breakfast: false, lunch: false, dinner: false },
+                cleanStatus: result.cleanStatus || { cleaned: false },
+                gold: result.gold || 100
+            };
+            this.petGameView = 'main';
         },
         
-        // 检查并重置喂养状态
+        // 加载伴侣宠物
+        async loadPartnerPet() {
+            const result = await ApiService.getPartnerPet();
+            if (result.error || !result) {
+                this.partnerPet = null;
+                return;
+            }
+            this.partnerPet = result;
+        },
+        
+        // 保存宠物数据
+        async savePet() {
+            await ApiService.updatePet(this.pet);
+        },
+        
+        // 检查并重置喂养状态（每天凌晨）
         checkFeedReset() {
             const today = new Date().toDateString();
-            if (this.pet.lastFeedReset !== today) {
+            if (!this.pet.lastFeedReset || this.pet.lastFeedReset !== today) {
                 this.pet.feedStatus = { breakfast: false, lunch: false, dinner: false };
                 this.pet.lastFeedReset = today;
                 this.savePet();
             }
         },
         
-        // 检查并重置清洁状态
+        // 检查并重置清洁状态（每天凌晨）
         checkCleanReset() {
             const today = new Date().toDateString();
-            if (this.pet.cleanStatus && this.pet.cleanStatus.lastCleanReset !== today) {
+            if (!this.pet.cleanStatus.lastCleanReset || this.pet.cleanStatus.lastCleanReset !== today) {
                 this.pet.cleanStatus = { cleaned: false, lastCleanReset: today };
                 this.savePet();
             }
-        },
-        
-        // 加载伴侣宠物
-        loadPartnerPet() {
-            this.partnerPet = null;
-            if (this.partner && this.partner.username) {
-                const partnerPetData = Storage.pet.get(this.partner.username);
-                if (partnerPetData && partnerPetData.id) {
-                    this.partnerPet = partnerPetData;
-                }
-            }
-        },
-        
-        // 加载主题
-        loadTheme() {
-            const settings = Storage.settings.get(this.currentUser.username);
-            const theme = settings?.theme || 'theme-pink';
-            this.applyTheme(theme, false);
-        },
-        
-        // 调用加载主题
-        callLoadTheme() {
-            this.loadTheme();
         },
         
         // 应用主题
@@ -301,24 +477,13 @@ createApp({
             themes.forEach(t => document.body.classList.remove(t));
             document.body.classList.add(themeClass);
             this.currentThemeClass = themeClass;
-            if (save) {
-                Storage.settings.set(this.currentUser.username, { theme: themeClass });
-            }
+            localStorage.setItem('theme', themeClass);
         },
         
-        // 加载伴侣数据
-        loadPartner() {
-            const username = this.currentUser.username;
-            const partnerUsername = Storage.couple.getPartner(username);
-            if (partnerUsername) {
-                const partnerUser = Storage.users.findByUsername(partnerUsername);
-                if (partnerUser) {
-                    this.partner = {
-                        username: partnerUsername,
-                        profile: partnerUser.profile || {}
-                    };
-                }
-            }
+        // 加载主题
+        loadTheme() {
+            const theme = localStorage.getItem('theme') || 'theme-pink';
+            this.applyTheme(theme, false);
         },
         
         // 计算纪念日天数
@@ -328,13 +493,6 @@ createApp({
             const now = new Date();
             const diff = Math.floor((now - start) / (1000 * 60 * 60 * 24));
             this.anniversaryDays = diff >= 0 ? diff : 0;
-            
-            // 计算自定义纪念日
-            this.customAnniversaries = (this.anniversaryData.customDates || []).map(d => {
-                const target = new Date(d.date);
-                const days = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
-                return { ...d, days };
-            }).filter(d => d.days > 0);
         },
         
         // 更新时间
@@ -349,25 +507,35 @@ createApp({
         
         // 退出登录
         handleLogout() {
-            Storage.currentUser.clear();
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
             clearInterval(this.timer);
             clearInterval(this.quoteTimer);
-            clearInterval(this.petTimer);
             window.location.href = 'index.html';
         },
         
         // 保存资料
-        saveProfile() {
-            const profileData = {
-                ...this.userProfile,
-                ...this.editProfileForm,
-                updatedAt: new Date().toISOString()
-            };
-            Storage.users.update(this.currentUser.username, { profile: profileData });
-            this.currentUser.profile = profileData;
-            Storage.currentUser.set(this.currentUser);
-            this.userProfile = profileData;
-            this.showEditProfile = false;
+        async saveProfile() {
+            const formData = new FormData();
+            formData.append('nickname', this.editProfileForm.nickname);
+            formData.append('age', this.editProfileForm.age || '');
+            formData.append('province', this.editProfileForm.province);
+            formData.append('city', this.editProfileForm.city);
+            formData.append('bio', this.editProfileForm.bio || '');
+            
+            // 如果有新头像
+            if (this.editProfileForm.avatar && this.editProfileForm.avatar.startsWith('data:')) {
+                // 创建一个临时文件对象
+                const response = await fetch(this.editProfileForm.avatar);
+                const blob = await response.blob();
+                formData.append('avatar', blob, 'avatar.png');
+            }
+            
+            const result = await ApiService.updateUser(formData);
+            if (result.success) {
+                await this.loadUserProfile();
+                this.showEditProfile = false;
+            }
         },
         
         // 头像上传
@@ -382,121 +550,99 @@ createApp({
         },
         
         // 添加纪念日
-        addAnniversary() {
-            if (!this.anniversaryData.customDates) this.anniversaryData.customDates = [];
-            this.anniversaryData.customDates.push(this.anniversaryForm);
-            Storage.anniversary.set(this.currentUser.username, this.anniversaryData);
-            this.calculateAnniversary();
+        async addAnniversary() {
+            await ApiService.addAnniversary(this.anniversaryForm.name, this.anniversaryForm.date);
             this.showAddAnniversary = false;
             this.anniversaryForm = { name: '', date: '' };
         },
         
-        // 相册相关
+        // 照片相关
         handlePhotoSelect(event) {
             this.selectedPhotos = Array.from(event.target.files);
         },
-        uploadPhotos() {
+        
+        async uploadPhotos() {
             if (!this.selectedPhotos.length) return;
-            const username = this.currentUser.username;
-            const promises = this.selectedPhotos.map(file => {
-                return new Promise(resolve => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        resolve({ url: e.target.result, category: this.uploadAlbumCategory, date: new Date().toISOString() });
-                    };
-                    reader.readAsDataURL(file);
-                });
-            });
-            Promise.all(promises).then(photos => {
-                this.albumData.push(...photos);
-                Storage.album.saveAll(username, this.albumData);
-                const categories = new Set(this.albumData.map(p => p.category));
-                this.albumCategories = ['全部', ...categories];
-                this.showAddAlbum = false;
-                this.selectedPhotos = [];
-            });
+            
+            for (const file of this.selectedPhotos) {
+                const formData = new FormData();
+                formData.append('photo', file);
+                formData.append('category', this.uploadAlbumCategory);
+                await ApiService.uploadPhoto(formData);
+            }
+            
+            await this.loadPhotos();
+            this.showAddAlbum = false;
+            this.selectedPhotos = [];
         },
+        
         addAlbumCategory() {
             if (this.albumCategories.includes(this.newCategoryName)) return;
             this.albumCategories.push(this.newCategoryName);
             this.showAddAlbumCategory = false;
             this.newCategoryName = '';
         },
+        
         viewPhoto(photo) {
             this.viewingPhoto = photo.url;
             this.showPhotoViewer = true;
         },
         
         // 语录相关
-        addQuote() {
-            this.quotes.push(this.newQuote);
-            Storage.quotes.saveAll(this.currentUser.username, this.quotes);
+        async addQuote() {
+            await ApiService.addQuote(this.newQuote);
+            await this.loadQuotes();
             this.showAddQuote = false;
             this.newQuote = '';
         },
         
         // 日记相关
-        saveDiary() {
-            const username = this.currentUser.username;
-            if (this.editingDiaryIndex >= 0) {
-                this.diaries[this.editingDiaryIndex].content = this.diaryForm.content;
-            } else {
-                this.diaries.unshift({ content: this.diaryForm.content, date: new Date().toISOString() });
-            }
-            Storage.diary.saveAll(username, this.diaries);
+        async saveDiary() {
+            await ApiService.addDiary(this.diaryForm.content);
+            await this.loadDiaries();
             this.showAddDiary = false;
             this.diaryForm = { content: '' };
-            this.editingDiaryIndex = -1;
+            this.editingDiary = null;
         },
+        
         editDiary(diary) {
             this.diaryForm.content = diary.content;
-            this.editingDiaryIndex = this.diaries.indexOf(diary);
+            this.editingDiary = diary;
             this.showAddDiary = true;
-        },
-        deleteDiary(index) {
-            this.diaries.splice(index, 1);
-            Storage.diary.saveAll(this.currentUser.username, this.diaries);
         },
         
         // 心愿清单
-        addWish() {
-            this.wishlist.push({ text: this.newWish, completed: false });
-            Storage.wishlist.saveAll(this.currentUser.username, this.wishlist);
+        async addWish() {
+            await ApiService.addWish(this.newWish);
+            await this.loadWishes();
             this.showAddWish = false;
             this.newWish = '';
         },
-        toggleWish(index) {
-            this.wishlist[index].completed = !this.wishlist[index].completed;
-            Storage.wishlist.saveAll(this.currentUser.username, this.wishlist);
+        
+        async toggleWish(id) {
+            const wish = this.wishlist.find(w => w.id === id);
+            if (wish) {
+                await ApiService.updateWish(id, wish.completed ? 0 : 1);
+                await this.loadWishes();
+            }
         },
-        deleteWish(index) {
-            this.wishlist.splice(index, 1);
-            Storage.wishlist.saveAll(this.currentUser.username, this.wishlist);
+        
+        async deleteWish(id) {
+            await ApiService.deleteWish(id);
+            await this.loadWishes();
         },
         
         // 修改密码
         changePassword() {
-            const user = Storage.users.findByUsername(this.currentUser.username);
-            if (user.password !== this.passwordForm.oldPassword) {
-                this.passwordError = '原密码错误';
-                return;
-            }
-            if (this.passwordForm.newPassword.length < 6) {
-                this.passwordError = '新密码长度至少6个字符';
-                return;
-            }
-            if (this.passwordForm.newPassword !== this.passwordForm.confirmPassword) {
-                this.passwordError = '两次输入的密码不一致';
-                return;
-            }
-            Storage.users.update(this.currentUser.username, { password: this.passwordForm.newPassword });
+            // 后端暂未实现修改密码API，显示提示
+            alert('修改密码功能即将上线');
             this.showChangePassword = false;
             this.passwordForm = { oldPassword: '', newPassword: '', confirmPassword: '' };
             this.passwordError = '';
         },
         
         // 宠物相关
-        selectPet(petId) {
+        async selectPet(petId) {
             const petOption = this.petOptions.find(p => p.id === petId);
             if (!petOption) return;
             
@@ -514,20 +660,19 @@ createApp({
                 mood: 100,
                 energy: 100,
                 feedStatus: { breakfast: false, lunch: false, dinner: false },
-                lastFeedReset: new Date().toDateString(),
-                cleanStatus: { cleaned: false, lastCleanReset: new Date().toDateString() },
+                cleanStatus: { cleaned: false },
                 gold: 100
             };
             
+            await ApiService.createPet(petOption.name, petOption.icon, petOption.element, petOption.elementName);
             this.petGameView = 'main';
-            this.savePet();
         },
         
         closePetGame() {
             this.showPetGame = false;
         },
         
-        feedPet() {
+        async feedPet() {
             const hour = new Date().getHours();
             const feedStatus = this.pet.feedStatus;
             
@@ -548,10 +693,10 @@ createApp({
             this.pet.mood = Math.min(100, this.pet.mood + 5);
             this.pet.exp += 10;
             this.checkLevelUp();
-            this.savePet();
+            await this.savePet();
         },
         
-        cleanPet() {
+        async cleanPet() {
             if (this.pet.cleanStatus && this.pet.cleanStatus.cleaned) {
                 return;
             }
@@ -560,22 +705,7 @@ createApp({
             this.pet.exp += 5;
             this.pet.cleanStatus = { cleaned: true, lastCleanReset: new Date().toDateString() };
             this.checkLevelUp();
-            this.savePet();
-        },
-        
-        playWithPet() {
-            if (this.pet.energy < 20) return;
-            this.pet.energy -= 15;
-            this.pet.mood = Math.min(100, this.pet.mood + 20);
-            this.pet.exp += 8;
-            this.checkLevelUp();
-            this.savePet();
-        },
-        
-        sleepPet() {
-            this.pet.energy = Math.min(100, this.pet.energy + 40);
-            this.pet.mood = Math.min(100, this.pet.mood + 5);
-            this.savePet();
+            await this.savePet();
         },
         
         checkLevelUp() {
@@ -586,29 +716,14 @@ createApp({
             }
         },
         
-        savePet() {
-            Storage.pet.set(this.currentUser.username, this.pet);
-        },
-        
-        decreasePetStats() {
-            if (!this.pet.id) return;
-            
-            this.pet.hunger = Math.max(0, this.pet.hunger - 2);
-            this.pet.cleanliness = Math.max(0, this.pet.cleanliness - 1);
-            this.pet.mood = Math.max(0, this.pet.mood - 1);
-            this.pet.energy = Math.max(0, this.pet.energy - 1);
-            this.savePet();
-        },
-        
         // 探险系统
-        startAdventure() {
+        async startAdventure() {
             if (this.pet.energy < 20) {
                 alert('体力不足，无法探险！');
                 return;
             }
             
             this.pet.energy -= 15;
-            this.petGameView = 'adventure';
             
             const zones = this.adventureZones;
             const zone = zones[Math.floor(Math.random() * zones.length)];
@@ -620,10 +735,11 @@ createApp({
                 result: null,
                 currentZoneData: zone
             };
-            this.savePet();
+            this.petGameView = 'adventure';
+            await this.savePet();
         },
         
-        exploreOption(option) {
+        async exploreOption(option) {
             const rand = Math.random();
             
             if (rand < 0.45) {
@@ -651,7 +767,7 @@ createApp({
                     gold: goldGain
                 };
                 this.adventure.enemy = null;
-                this.savePet();
+                await this.savePet();
             } else if (rand < 0.9) {
                 const goldGain = 5 + Math.floor(Math.random() * 10);
                 const expGain = 5 + Math.floor(Math.random() * 5);
@@ -665,7 +781,7 @@ createApp({
                     gold: goldGain
                 };
                 this.adventure.enemy = null;
-                this.savePet();
+                await this.savePet();
             } else {
                 const goldLoss = 3 + Math.floor(Math.random() * 5);
                 this.pet.gold = Math.max(0, this.pet.gold - goldLoss);
@@ -676,11 +792,11 @@ createApp({
                     gold: -goldLoss
                 };
                 this.adventure.enemy = null;
-                this.savePet();
+                await this.savePet();
             }
         },
         
-        attackEnemy() {
+        async attackEnemy() {
             if (!this.adventure.enemy) return;
             
             const playerPower = this.pet.level * 10 + Math.floor(this.pet.mood / 10);
@@ -716,10 +832,10 @@ createApp({
             }
             
             this.adventure.enemy = null;
-            this.savePet();
+            await this.savePet();
         },
         
-        flee() {
+        async flee() {
             const goldLoss = 3 + Math.floor(Math.random() * 5);
             this.pet.gold = Math.max(0, this.pet.gold - goldLoss);
             this.adventure.result = {
@@ -730,11 +846,11 @@ createApp({
             };
             this.adventure.enemy = null;
             this.adventure.options = [];
-            this.savePet();
+            await this.savePet();
         },
         
         // 情侣对战系统
-        startCoupleBattle() {
+        async startCoupleBattle() {
             if (!this.partnerPet) {
                 this.battleResult = {
                     win: false,
@@ -767,9 +883,6 @@ createApp({
             
             const elementalBonus = this.getElementalAdvantage(this.pet.element, this.partnerPet.element);
             
-            const playerFinalPower = playerPower * elementalBonus;
-            const partnerFinalPower = partnerPower;
-            
             const winChance = 0.4 * elementalBonus;
             const isWin = Math.random() < winChance;
             
@@ -801,7 +914,7 @@ createApp({
                 };
             }
             
-            this.savePet();
+            await this.savePet();
         },
         
         calculatePetPower(pet) {
@@ -832,6 +945,7 @@ createApp({
             }
             this.isPlaying = !this.isPlaying;
         },
+        
         changeVolume() {
             if (this.audio) {
                 this.audio.volume = this.volume / 100;
@@ -845,49 +959,36 @@ createApp({
         },
         
         // 绑定情侣关系
-        bindCouple() {
+        async bindCouple() {
             const targetUsername = this.coupleUsername.trim();
             
-            // 检查是否是自己
             if (targetUsername === this.currentUser.username) {
                 this.coupleBindError = '不能绑定自己哦~';
                 this.coupleBindSuccess = '';
                 return;
             }
             
-            // 检查对方用户是否存在
-            const targetUser = Storage.users.findByUsername(targetUsername);
-            if (!targetUser) {
-                this.coupleBindError = '未找到该用户信息';
+            const result = await ApiService.bindPartner(targetUsername);
+            
+            if (result.success) {
+                await this.loadPartner();
+                this.coupleBindSuccess = '绑定成功！💕';
+                this.coupleBindError = '';
+                this.coupleUsername = '';
+                
+                setTimeout(() => {
+                    this.coupleBindSuccess = '';
+                }, 3000);
+            } else {
+                this.coupleBindError = result.error || '绑定失败';
                 this.coupleBindSuccess = '';
-                return;
             }
-            
-            // 绑定成功
-            Storage.couple.bind(this.currentUser.username, targetUsername);
-            
-            // 更新伴侣信息
-            this.partner = {
-                username: targetUsername,
-                profile: targetUser.profile || {}
-            };
-            
-            this.coupleBindSuccess = '绑定成功！💕';
-            this.coupleBindError = '';
-            
-            // 清空输入框
-            this.coupleUsername = '';
-            
-            // 3秒后清空成功提示
-            setTimeout(() => {
-                this.coupleBindSuccess = '';
-            }, 3000);
         },
         
         // 解除情侣关系
-        unbindCouple() {
+        async unbindCouple() {
             if (confirm('确定要解除情侣关系吗？')) {
-                Storage.couple.unbind(this.currentUser.username);
+                await ApiService.unbindPartner();
                 this.partner = null;
                 this.showCoupleBind = false;
             }
@@ -895,8 +996,8 @@ createApp({
     },
     mounted() {
         // 检查登录状态
-        this.currentUser = Storage.currentUser.get();
-        if (!this.currentUser) {
+        const token = localStorage.getItem('token');
+        if (!token) {
             window.location.href = 'index.html';
             return;
         }
@@ -917,24 +1018,13 @@ createApp({
             }
         }, 5000);
         
-        // 宠物属性衰减
-        this.petTimer = setInterval(() => {
-            if (this.pet.type) {
-                this.decreasePetStats();
-            }
-        }, 60000); // 每分钟衰减一次
-        
         // 加载主题设置
-        const settings = Storage.settings.get(this.currentUser.username);
-        if (settings && settings.theme) {
-            document.body.classList.add(settings.theme);
-        }
+        this.loadTheme();
         
         this.updateTime();
     },
     beforeUnmount() {
         clearInterval(this.timer);
         clearInterval(this.quoteTimer);
-        clearInterval(this.petTimer);
     }
 }).mount('#app');

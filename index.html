@@ -73,7 +73,6 @@
         <div id="hearts-container"></div>
     </div>
 
-    <script src="utils/storage.js"></script>
     <script>
         const { createApp } = Vue;
         
@@ -84,42 +83,50 @@
                         username: '',
                         password: ''
                     },
-                    errorMsg: ''
+                    errorMsg: '',
+                    loading: false
                 };
             },
             methods: {
-                handleLogin() {
+                async handleLogin() {
                     this.errorMsg = '';
+                    this.loading = true;
                     
                     if (!this.loginForm.username || !this.loginForm.password) {
                         this.errorMsg = '请输入账号和密码';
+                        this.loading = false;
                         return;
                     }
 
-                    const user = Storage.users.findByUsername(this.loginForm.username);
-                    if (!user) {
-                        this.errorMsg = '账号不存在，请先注册';
-                        return;
-                    }
-
-                    if (user.password !== this.loginForm.password) {
-                        this.errorMsg = '密码错误，请重新输入';
-                        return;
-                    }
-
-                    Storage.currentUser.set(user);
-
-                    if (user.profile && user.profile.nickname && user.profile.city) {
-                        window.location.href = 'home.html';
-                    } else {
-                        window.location.href = 'profile.html';
+                    try {
+                        const response = await fetch('/api/login', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(this.loginForm)
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            localStorage.setItem('token', data.token);
+                            localStorage.setItem('user', JSON.stringify(data.user));
+                            window.location.href = 'home.html';
+                        } else {
+                            this.errorMsg = data.error || '登录失败';
+                        }
+                    } catch (error) {
+                        this.errorMsg = '网络错误，请稍后重试';
+                    } finally {
+                        this.loading = false;
                     }
                 }
             },
             mounted() {
                 console.log('登录页面Vue已成功挂载');
-                const currentUser = Storage.currentUser.get();
-                if (currentUser) {
+                const token = localStorage.getItem('token');
+                if (token) {
                     window.location.href = 'home.html';
                 }
             }

@@ -95,7 +95,6 @@
         <div id="hearts-container"></div>
     </div>
 
-    <script src="utils/storage.js"></script>
     <script>
         const { createApp } = Vue;
         
@@ -111,7 +110,8 @@
                     passwordError: '',
                     confirmPasswordError: '',
                     successMsg: '',
-                    errorMsg: ''
+                    errorMsg: '',
+                    loading: false
                 };
             },
             computed: {
@@ -134,10 +134,6 @@
                     }
                     if (!/^[a-zA-Z0-9]+$/.test(username)) {
                         this.usernameError = '账号仅支持纯英文、英文+数字、纯数字';
-                        return;
-                    }
-                    if (Storage.users.findByUsername(username)) {
-                        this.usernameError = '该账号已被注册';
                         return;
                     }
                     this.usernameError = '';
@@ -171,9 +167,10 @@
                     }
                     this.confirmPasswordError = '';
                 },
-                handleRegister() {
+                async handleRegister() {
                     this.errorMsg = '';
                     this.successMsg = '';
+                    this.loading = true;
                     
                     this.validateUsername();
                     this.validatePassword();
@@ -181,24 +178,36 @@
 
                     if (this.usernameError || this.passwordError || this.confirmPasswordError) {
                         this.errorMsg = '请检查输入是否符合要求';
+                        this.loading = false;
                         return;
                     }
 
-                    const newUser = {
-                        username: this.registerForm.username,
-                        password: this.registerForm.password,
-                        profile: null,
-                        createdAt: new Date().toISOString()
-                    };
-
-                    if (Storage.users.add(newUser)) {
-                        this.successMsg = '注册成功！即将跳转到登录页...';
-                        this.errorMsg = '';
-                        setTimeout(() => {
-                            window.location.href = 'index.html';
-                        }, 3000);
-                    } else {
-                        this.errorMsg = '注册失败，请重试';
+                    try {
+                        const response = await fetch('/api/register', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                username: this.registerForm.username,
+                                password: this.registerForm.password
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.successMsg = '注册成功！即将跳转到登录页...';
+                            setTimeout(() => {
+                                window.location.href = 'index.html';
+                            }, 3000);
+                        } else {
+                            this.errorMsg = data.error || '注册失败';
+                        }
+                    } catch (error) {
+                        this.errorMsg = '网络错误，请稍后重试';
+                    } finally {
+                        this.loading = false;
                     }
                 }
             },

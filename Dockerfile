@@ -1,12 +1,14 @@
-FROM nginx:alpine
+FROM node:18-alpine
 
-LABEL maintainer="love-space"
-LABEL description="甜蜜空间 - 情侣专属网页"
+WORKDIR /app
 
-COPY . /usr/share/nginx/html
+COPY package*.json ./
+RUN npm install --production
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY . .
 
-EXPOSE 80
+RUN mkdir -p /app/uploads /app/data
 
-CMD ["nginx", "-g", "daemon off;"]
+EXPOSE 3000
+
+CMD ["node", "server.js"]
