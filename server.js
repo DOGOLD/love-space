@@ -67,9 +67,10 @@ db.serialize(() => {
     `);
     
     // 为现有表添加恋爱开始时间字段（如果不存在）
-    db.run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS love_start_date TEXT`, (err) => {
-        if (err && !err.message.includes('duplicate column')) {
-            console.log('添加字段跳过:', err.message);
+    db.run(`ALTER TABLE users ADD COLUMN love_start_date TEXT`, (err) => {
+        // 如果字段已存在，SQLite 会返回错误，这是正常的，可以忽略
+        if (err) {
+            console.log('添加字段跳过（已存在或其他错误）:', err.message);
         }
     });
 
