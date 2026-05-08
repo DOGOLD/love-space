@@ -28,10 +28,16 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// 数据库配置
+// 数据库和上传目录配置
+const fs = require('fs');
 const dbDir = path.join(__dirname, 'data');
-if (!require('fs').existsSync(dbDir)) {
-    require('fs').mkdirSync(dbDir, { recursive: true });
+const uploadsDir = path.join(__dirname, 'uploads');
+
+if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+}
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
 const db = new sqlite3.Database(path.join(dbDir, 'database.sqlite'), (err) => {
@@ -244,21 +250,37 @@ app.post('/api/user', authenticateToken, upload.single('avatar'), (req, res) => 
     const userId = getUserId(req);
     const { nickname, age, province, city, bio } = req.body;
     
-    let avatar = null;
-    if (req.file) {
-        avatar = `/uploads/${req.file.filename}`;
-    }
+    console.log('收到更新用户请求:', { userId, hasFile: !!req.file, body: req.body });
     
-    db.run(
-        'UPDATE users SET nickname = ?, age = ?, province = ?, city = ?, bio = ?' + (avatar ? ', avatar = ?' : '') + ' WHERE id = ?',
-        [...[nickname, age || null, province, city, bio], ...(avatar ? [avatar] : []), userId],
-        (err) => {
-            if (err) {
-                return res.status(500).json({ error: '更新失败' });
-            }
-            res.json({ success: true });
+    // 先获取当前用户信息，保留未更新的字段
+    db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
+        if (err || !user) {
+            return res.status(500).json({ error: '用户不存在' });
         }
-    );
+        
+        let avatar = user.avatar;
+        if (req.file) {
+            avatar = `/uploads/${req.file.filename}`;
+        }
+        
+        const newNickname = nickname || user.nickname;
+        const newAge = age !== undefined ? age : user.age;
+        const newProvince = province !== undefined ? province : user.province;
+        const newCity = city !== undefined ? city : user.city;
+        const newBio = bio !== undefined ? bio : user.bio;
+        
+        db.run(
+            'UPDATE users SET nickname = ?, age = ?, province = ?, city = ?, bio = ?, avatar = ? WHERE id = ?',
+            [newNickname, newAge || null, newProvince, newCity, newBio, avatar, userId],
+            (err) => {
+                if (err) {
+                    console.error('更新用户失败:', err);
+                    return res.status(500).json({ error: '更新失败' });
+                }
+                res.json({ success: true });
+            }
+        );
+    });
 });
 
 // 获取伴侣信息
@@ -363,6 +385,8 @@ app.post('/api/photos', authenticateToken, upload.single('photo'), (req, res) =>
     const userId = getUserId(req);
     const category = req.body.category || '默认相册';
     
+    console.log('收到照片上传请求:', { userId, hasFile: !!req.file, category });
+    
     if (!req.file) {
         return res.status(400).json({ error: '请选择照片' });
     }
@@ -371,7 +395,10 @@ app.post('/api/photos', authenticateToken, upload.single('photo'), (req, res) =>
         'INSERT INTO photos (user_id, url, category) VALUES (?, ?, ?)',
         [userId, `/uploads/${req.file.filename}`, category],
         (err) => {
-            if (err) return res.status(500).json({ error: '上传失败' });
+            if (err) {
+                console.error('照片上传失败:', err);
+                return res.status(500).json({ error: '上传失败' });
+            }
             res.json({ success: true });
         }
     );
