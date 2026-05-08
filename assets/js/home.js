@@ -177,7 +177,7 @@ createApp({
             // 纪念日
             anniversaryData: { startDate: new Date().toISOString().split('T')[0], customDates: [] },
             anniversaryDays: 0,
-            currentTime: { hours: '00', minutes: '00', seconds: '00' },
+            clockTime: { hours: '00', minutes: '00', seconds: '00' },
             customAnniversaries: [],
             timer: null,
             
@@ -577,7 +577,7 @@ createApp({
         // 更新时间
         updateTime() {
             const now = new Date();
-            this.currentTime = {
+            this.clockTime = {
                 hours: String(now.getHours()).padStart(2, '0'),
                 minutes: String(now.getMinutes()).padStart(2, '0'),
                 seconds: String(now.getSeconds()).padStart(2, '0')
