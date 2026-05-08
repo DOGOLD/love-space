@@ -218,7 +218,7 @@
                             @click="editDiary(diary)"
                         >
                             <div class="flex items-center justify-between">
-                                <span class="text-gray-500 text-xs">{{ formatDate(diary.date) }}</span>
+                                <span class="text-gray-500 text-xs">{{ diary.user_nickname || '用户' }} - {{ formatDateTime(diary.date) }}</span>
                                 <div class="flex space-x-2">
                                     <button @click.stop="editDiary(diary)" class="text-gray-400 hover:text-pink-400">✏️</button>
                                     <button @click.stop="deleteDiary(index)" class="text-gray-400 hover:text-red-400">🗑️</button>
@@ -264,39 +264,54 @@
 
         <!-- 音乐播放器 -->
         <div class="fixed bottom-20 right-4 z-40">
-            <div class="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-4 w-80">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="font-bold text-gray-800 flex items-center">
-                        <span class="mr-2">🎵</span> 音乐
+            <div class="bg-white/65 backdrop-blur-xl rounded-2xl shadow-xl p-3 w-64 border border-white/30">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-bold text-gray-700 flex items-center text-sm">
+                        <span class="mr-1">🎵</span> 音乐
                     </h3>
-                    <button @click="showAddMusic = true" class="text-pink-400 hover:text-pink-500 text-sm">+ 添加</button>
+                    <button @click="showAddMusic = true" class="text-pink-400 hover:text-pink-500 text-xs">+ 添加</button>
                 </div>
                 
                 <!-- 当前播放 -->
-                <div class="text-center mb-3">
-                    <div v-if="musicList.length" class="text-gray-600 text-sm truncate">
+                <div class="text-center mb-2">
+                    <div v-if="musicList.length" class="text-gray-600 text-xs truncate">
                         {{ musicList[currentMusicIndex]?.name || '暂无音乐' }}
                     </div>
-                    <div v-else class="text-gray-400 text-sm">暂无音乐</div>
+                    <div v-else class="text-gray-400 text-xs">暂无音乐</div>
+                </div>
+                
+                <!-- 进度条 -->
+                <div v-if="musicList.length" class="mb-2">
+                    <div class="flex items-center justify-between text-gray-400 text-[10px] mb-1">
+                        <span>{{ formatMusicTime(currentTime) }}</span>
+                        <span>{{ formatMusicTime(duration) }}</span>
+                    </div>
+                    <input 
+                        type="range" 
+                        :value="currentTime" 
+                        :max="duration || 100" 
+                        @input="seekMusic($event)" 
+                        class="w-full h-1 accent-pink-400 cursor-pointer"
+                    >
                 </div>
                 
                 <!-- 控制按钮 -->
-                <div class="flex items-center justify-center space-x-4 mb-3">
-                    <button @click="playPrevMusic" v-if="musicList.length" class="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200 btn-press">
+                <div class="flex items-center justify-center space-x-3 mb-2">
+                    <button @click="playPrevMusic" v-if="musicList.length" class="w-7 h-7 rounded-full bg-white/70 text-gray-600 flex items-center justify-center hover:bg-white/90 btn-press text-sm">
                         ⏮️
                     </button>
-                    <button @click="toggleMusic" v-if="musicList.length" class="w-12 h-12 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 text-white flex items-center justify-center hover:shadow-lg transition-all btn-press">
+                    <button @click="toggleMusic" v-if="musicList.length" class="w-10 h-10 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 text-white flex items-center justify-center hover:shadow-lg transition-all btn-press text-sm">
                         {{ isPlaying ? '⏸️' : '▶️' }}
                     </button>
-                    <button @click="playNextMusic" v-if="musicList.length" class="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200 btn-press">
+                    <button @click="playNextMusic" v-if="musicList.length" class="w-7 h-7 rounded-full bg-white/70 text-gray-600 flex items-center justify-center hover:bg-white/90 btn-press text-sm">
                         ⏭️
                     </button>
                 </div>
                 
                 <!-- 音量 -->
                 <div class="flex items-center space-x-2">
-                    <span class="text-gray-500 text-xs">🔊</span>
-                    <input type="range" v-model="volume" @input="updateVolume" min="0" max="100" class="flex-1 accent-pink-400">
+                    <span class="text-gray-500 text-[10px]">🔊</span>
+                    <input type="range" v-model="volume" @input="updateVolume" min="0" max="100" class="flex-1 h-1 accent-pink-400">
                 </div>
             </div>
         </div>

@@ -276,6 +276,8 @@ createApp({
             audio: null,
             musicList: [],
             currentMusicIndex: 0,
+            currentTime: 0,
+            duration: 0,
             showAddMusic: false,
             selectedMusicFile: null,
             musicName: '',
@@ -374,7 +376,8 @@ createApp({
                 this.loadWishes(),
                 this.loadPet(),
                 this.loadPartnerPet(),
-                this.loadMusic()
+                this.loadMusic(),
+                this.loadAnniversaries()
             ]);
             this.calculateAnniversary();
         },
@@ -385,6 +388,31 @@ createApp({
             if (music) {
                 this.musicList = music;
             }
+        },
+        
+        // 加载自定义纪念日
+        async loadAnniversaries() {
+            const result = await ApiService.getAnniversaries();
+            if (result.error) {
+                console.error('Failed to load anniversaries:', result.error);
+                return;
+            }
+            this.customAnniversaries = result.map(item => {
+                const today = new Date();
+                const anniversaryDate = new Date(item.date);
+                let nextDate = new Date(anniversaryDate);
+                nextDate.setFullYear(today.getFullYear());
+                
+                if (nextDate < today) {
+                    nextDate.setFullYear(today.getFullYear() + 1);
+                }
+                
+                const diff = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24));
+                return {
+                    ...item,
+                    days: diff === 0 ? '今天' : diff
+                };
+            });
         },
         
         // 加载用户资料
@@ -605,6 +633,7 @@ createApp({
             await ApiService.addAnniversary(this.anniversaryForm.name, this.anniversaryForm.date);
             this.showAddAnniversary = false;
             this.anniversaryForm = { name: '', date: '' };
+            await this.loadAnniversaries();
         },
         
         // 照片相关
@@ -1006,7 +1035,19 @@ createApp({
         // 格式化日期
         formatDate(dateStr) {
             const date = new Date(dateStr);
+            if (isNaN(date.getTime())) {
+                return '';
+            }
             return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        },
+        
+        // 格式化日期时间
+        formatDateTime(dateStr) {
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) {
+                return '';
+            }
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
         },
         
         // 绑定情侣关系
@@ -1084,10 +1125,19 @@ createApp({
             
             if (this.audio) {
                 this.audio.pause();
+                this.audio = null;
             }
             
             this.audio = new Audio(music.url);
             this.audio.volume = this.volume / 100;
+            
+            this.audio.onloadedmetadata = () => {
+                this.duration = this.audio.duration;
+            };
+            
+            this.audio.ontimeupdate = () => {
+                this.currentTime = this.audio.currentTime;
+            };
             
             this.audio.onended = () => {
                 this.playNextMusic();
@@ -1095,6 +1145,22 @@ createApp({
             
             this.audio.play();
             this.isPlaying = true;
+        },
+        
+        // 格式化音乐时间
+        formatMusicTime(seconds) {
+            if (!seconds || isNaN(seconds)) return '0:00';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${String(secs).padStart(2, '0')}`;
+        },
+        
+        // 跳转音乐进度
+        seekMusic(event) {
+            if (this.audio) {
+                this.audio.currentTime = parseFloat(event.target.value);
+                this.currentTime = this.audio.currentTime;
+            }
         },
         
         // 暂停音乐
