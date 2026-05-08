@@ -132,6 +132,26 @@ const ApiService = {
     
     async getPartnerPet() {
         return this.request('GET', '/pet/partner');
+    },
+    
+    // 设置恋爱开始时间
+    async setLoveDate(date) {
+        return this.request('POST', '/love-date', { date });
+    },
+    
+    // 获取音乐
+    async getMusic() {
+        return this.request('GET', '/music');
+    },
+    
+    // 上传音乐
+    async uploadMusic(formData) {
+        return this.request('POST', '/music', formData, true);
+    },
+    
+    // 删除音乐
+    async deleteMusic(id) {
+        return this.request('DELETE', `/music/${id}`);
     }
 };
 
@@ -254,6 +274,14 @@ createApp({
             isPlaying: false,
             volume: 50,
             audio: null,
+            musicList: [],
+            currentMusicIndex: 0,
+            showAddMusic: false,
+            selectedMusicFile: null,
+            musicName: '',
+            
+            // 恋爱开始时间
+            loveStartDate: '',
             
             // 弹窗控制
             showSettings: false,
@@ -345,9 +373,18 @@ createApp({
                 this.loadDiaries(),
                 this.loadWishes(),
                 this.loadPet(),
-                this.loadPartnerPet()
+                this.loadPartnerPet(),
+                this.loadMusic()
             ]);
             this.calculateAnniversary();
+        },
+        
+        // 加载音乐
+        async loadMusic() {
+            const music = await ApiService.getMusic();
+            if (music) {
+                this.musicList = music;
+            }
         },
         
         // 加载用户资料
@@ -358,6 +395,9 @@ createApp({
                 return;
             }
             this.userProfile = result;
+            if (result.love_start_date) {
+                this.loveStartDate = result.love_start_date;
+            }
         },
         
         // 加载伴侣
@@ -488,11 +528,22 @@ createApp({
         
         // 计算纪念日天数
         calculateAnniversary() {
-            if (!this.anniversaryData) return;
-            const start = new Date(this.anniversaryData.startDate);
+            if (!this.loveStartDate) return;
+            const start = new Date(this.loveStartDate);
             const now = new Date();
             const diff = Math.floor((now - start) / (1000 * 60 * 60 * 24));
             this.anniversaryDays = diff >= 0 ? diff : 0;
+        },
+        
+        // 设置恋爱开始时间
+        async setLoveDate() {
+            if (!this.loveStartDate) {
+                alert('请选择日期');
+                return;
+            }
+            await ApiService.setLoveDate(this.loveStartDate);
+            this.calculateAnniversary();
+            alert('设置成功');
         },
         
         // 更新时间
@@ -991,6 +1042,104 @@ createApp({
                 await ApiService.unbindPartner();
                 this.partner = null;
                 this.showCoupleBind = false;
+            }
+        },
+        
+        // 音乐文件选择
+        handleMusicFileChange(e) {
+            this.selectedMusicFile = e.target.files[0];
+            if (this.selectedMusicFile && !this.musicName) {
+                this.musicName = this.selectedMusicFile.name.replace(/\.[^/.]+$/, '');
+            }
+        },
+        
+        // 上传音乐
+        async uploadMusic() {
+            if (!this.selectedMusicFile) {
+                alert('请选择音乐文件');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('music', this.selectedMusicFile);
+            formData.append('name', this.musicName || this.selectedMusicFile.name);
+            
+            await ApiService.uploadMusic(formData);
+            await this.loadMusic();
+            this.showAddMusic = false;
+            this.selectedMusicFile = null;
+            this.musicName = '';
+            alert('上传成功');
+        },
+        
+        // 播放音乐
+        playMusic(index) {
+            if (index === undefined) {
+                index = this.currentMusicIndex;
+            }
+            this.currentMusicIndex = index;
+            
+            const music = this.musicList[index];
+            if (!music) return;
+            
+            if (this.audio) {
+                this.audio.pause();
+            }
+            
+            this.audio = new Audio(music.url);
+            this.audio.volume = this.volume / 100;
+            
+            this.audio.onended = () => {
+                this.playNextMusic();
+            };
+            
+            this.audio.play();
+            this.isPlaying = true;
+        },
+        
+        // 暂停音乐
+        pauseMusic() {
+            if (this.audio) {
+                this.audio.pause();
+                this.isPlaying = false;
+            }
+        },
+        
+        // 下一首
+        playNextMusic() {
+            if (this.musicList.length === 0) return;
+            this.currentMusicIndex = (this.currentMusicIndex + 1) % this.musicList.length;
+            this.playMusic(this.currentMusicIndex);
+        },
+        
+        // 上一首
+        playPrevMusic() {
+            if (this.musicList.length === 0) return;
+            this.currentMusicIndex = (this.currentMusicIndex - 1 + this.musicList.length) % this.musicList.length;
+            this.playMusic(this.currentMusicIndex);
+        },
+        
+        // 删除音乐
+        async deleteMusic(id) {
+            if (confirm('确定要删除这首歌吗？')) {
+                await ApiService.deleteMusic(id);
+                await this.loadMusic();
+            }
+        },
+        
+        // 切换播放状态
+        toggleMusic() {
+            if (this.isPlaying) {
+                this.pauseMusic();
+            } else {
+                this.playMusic();
+            }
+        },
+        
+        // 更新音量
+        updateVolume() {
+            if (this.audio) {
+                this.audio.volume = this.volume / 100;
             }
         }
     },

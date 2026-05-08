@@ -60,10 +60,18 @@ db.serialize(() => {
             bio TEXT,
             avatar TEXT,
             partner_id INTEGER,
+            love_start_date TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (partner_id) REFERENCES users(id)
         )
     `);
+    
+    // 为现有表添加恋爱开始时间字段（如果不存在）
+    db.run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS love_start_date TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            console.log('添加字段跳过:', err.message);
+        }
+    });
 
     // 照片表
     db.run(`
@@ -141,6 +149,18 @@ db.serialize(() => {
             feed_status TEXT DEFAULT '{}',
             clean_status TEXT DEFAULT '{}',
             gold INTEGER DEFAULT 100,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    `);
+    
+    // 音乐表
+    db.run(`
+        CREATE TABLE IF NOT EXISTS music (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            name TEXT,
+            url TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
@@ -237,11 +257,41 @@ app.post('/api/login', (req, res) => {
 app.get('/api/user', authenticateToken, (req, res) => {
     const userId = getUserId(req);
     
-    db.get('SELECT id, username, nickname, age, province, city, bio, avatar FROM users WHERE id = ?', [userId], (err, user) => {
+    db.get('SELECT id, username, nickname, age, province, city, bio, avatar, love_start_date FROM users WHERE id = ?', [userId], (err, user) => {
         if (err || !user) {
             return res.status(500).json({ error: '获取用户信息失败' });
         }
         res.json(user);
+    });
+});
+
+// 设置恋爱开始时间
+app.post('/api/love-date', authenticateToken, (req, res) => {
+    const userId = getUserId(req);
+    const { date } = req.body;
+    
+    console.log('设置恋爱时间:', { userId, date });
+    
+    // 先获取当前用户信息
+    db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
+        if (err || !user) {
+            return res.status(500).json({ error: '用户不存在' });
+        }
+        
+        // 更新当前用户和伴侣的恋爱时间
+        db.run('UPDATE users SET love_start_date = ? WHERE id = ?', [date, userId], (err) => {
+            if (err) return res.status(500).json({ error: '更新失败' });
+            
+            // 如果有伴侣，也更新伴侣的时间
+            if (user.partner_id) {
+                db.run('UPDATE users SET love_start_date = ? WHERE id = ?', [date, user.partner_id], (err) => {
+                    if (err) console.error('更新伴侣恋爱时间失败:', err);
+                    res.json({ success: true });
+                });
+            } else {
+                res.json({ success: true });
+            }
+        });
     });
 });
 
@@ -414,13 +464,28 @@ app.get('/api/photos/categories', authenticateToken, (req, res) => {
     });
 });
 
-// 获取日记
+// 获取日记（包含情侣双方）
 app.get('/api/diaries', authenticateToken, (req, res) => {
     const userId = getUserId(req);
     
-    db.all('SELECT * FROM diaries WHERE user_id = ? ORDER BY created_at DESC', [userId], (err, diaries) => {
+    // 获取用户和伴侣的日记
+    db.get('SELECT partner_id FROM users WHERE id = ?', [userId], (err, user) => {
         if (err) return res.status(500).json({ error: '获取日记失败' });
-        res.json(diaries);
+        
+        let query = 'SELECT * FROM diaries WHERE user_id = ?';
+        let params = [userId];
+        
+        if (user && user.partner_id) {
+            query += ' OR user_id = ?';
+            params.push(user.partner_id);
+        }
+        
+        query += ' ORDER BY created_at DESC';
+        
+        db.all(query, params, (err, diaries) => {
+            if (err) return res.status(500).json({ error: '获取日记失败' });
+            res.json(diaries);
+        });
     });
 });
 
@@ -439,13 +504,28 @@ app.post('/api/diaries', authenticateToken, (req, res) => {
     });
 });
 
-// 获取语录
+// 获取语录（包含情侣双方）
 app.get('/api/quotes', authenticateToken, (req, res) => {
     const userId = getUserId(req);
     
-    db.all('SELECT * FROM quotes WHERE user_id = ? ORDER BY created_at DESC', [userId], (err, quotes) => {
+    // 获取用户和伴侣的语录
+    db.get('SELECT partner_id FROM users WHERE id = ?', [userId], (err, user) => {
         if (err) return res.status(500).json({ error: '获取语录失败' });
-        res.json(quotes);
+        
+        let query = 'SELECT * FROM quotes WHERE user_id = ?';
+        let params = [userId];
+        
+        if (user && user.partner_id) {
+            query += ' OR user_id = ?';
+            params.push(user.partner_id);
+        }
+        
+        query += ' ORDER BY created_at DESC';
+        
+        db.all(query, params, (err, quotes) => {
+            if (err) return res.status(500).json({ error: '获取语录失败' });
+            res.json(quotes);
+        });
     });
 });
 
@@ -464,13 +544,28 @@ app.post('/api/quotes', authenticateToken, (req, res) => {
     });
 });
 
-// 获取心愿
+// 获取心愿（包含情侣双方）
 app.get('/api/wishes', authenticateToken, (req, res) => {
     const userId = getUserId(req);
     
-    db.all('SELECT * FROM wishes WHERE user_id = ? ORDER BY created_at DESC', [userId], (err, wishes) => {
+    // 获取用户和伴侣的心愿
+    db.get('SELECT partner_id FROM users WHERE id = ?', [userId], (err, user) => {
         if (err) return res.status(500).json({ error: '获取心愿失败' });
-        res.json(wishes);
+        
+        let query = 'SELECT * FROM wishes WHERE user_id = ?';
+        let params = [userId];
+        
+        if (user && user.partner_id) {
+            query += ' OR user_id = ?';
+            params.push(user.partner_id);
+        }
+        
+        query += ' ORDER BY created_at DESC';
+        
+        db.all(query, params, (err, wishes) => {
+            if (err) return res.status(500).json({ error: '获取心愿失败' });
+            res.json(wishes);
+        });
     });
 });
 
@@ -537,6 +632,62 @@ app.post('/api/anniversaries', authenticateToken, (req, res) => {
     
     db.run('INSERT INTO anniversaries (user_id, name, date) VALUES (?, ?, ?)', [userId, name, date], (err) => {
         if (err) return res.status(500).json({ error: '添加失败' });
+        res.json({ success: true });
+    });
+});
+
+// 获取音乐列表（包含情侣双方）
+app.get('/api/music', authenticateToken, (req, res) => {
+    const userId = getUserId(req);
+    
+    db.get('SELECT partner_id FROM users WHERE id = ?', [userId], (err, user) => {
+        if (err) return res.status(500).json({ error: '获取音乐失败' });
+        
+        let query = 'SELECT * FROM music WHERE user_id = ?';
+        let params = [userId];
+        
+        if (user && user.partner_id) {
+            query += ' OR user_id = ?';
+            params.push(user.partner_id);
+        }
+        
+        query += ' ORDER BY created_at DESC';
+        
+        db.all(query, params, (err, music) => {
+            if (err) return res.status(500).json({ error: '获取音乐失败' });
+            res.json(music);
+        });
+    });
+});
+
+// 上传音乐
+app.post('/api/music', authenticateToken, upload.single('music'), (req, res) => {
+    const userId = getUserId(req);
+    const { name } = req.body;
+    
+    console.log('收到音乐上传:', { userId, hasFile: !!req.file, name });
+    
+    if (!req.file) {
+        return res.status(400).json({ error: '请选择音乐文件' });
+    }
+    
+    const musicName = name || req.file.originalname;
+    
+    db.run('INSERT INTO music (user_id, name, url) VALUES (?, ?, ?)', 
+        [userId, musicName, `/uploads/${req.file.filename}`], 
+        (err) => {
+            if (err) return res.status(500).json({ error: '上传失败' });
+            res.json({ success: true });
+        });
+});
+
+// 删除音乐
+app.delete('/api/music/:id', authenticateToken, (req, res) => {
+    const userId = getUserId(req);
+    const { id } = req.params;
+    
+    db.run('DELETE FROM music WHERE id = ? AND user_id = ?', [id, userId], (err) => {
+        if (err) return res.status(500).json({ error: '删除失败' });
         res.json({ success: true });
     });
 });
