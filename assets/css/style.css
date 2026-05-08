@@ -540,6 +540,14 @@ body.theme-pink .btn-press:hover {
     box-shadow: 0 4px 20px var(--glow-color);
 }
 
+.theme-pink select option,
+body.theme-pink select option,
+.theme-cloud select option,
+body.theme-cloud select option {
+    background: white;
+    color: #4A4A4A;
+}
+
 /* 主题2：极简液态霓虹 */
 .theme-neon {
     --primary: #00D9FF;
@@ -619,6 +627,12 @@ body.theme-neon select,
 body.theme-neon textarea {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.theme-neon select option,
+body.theme-neon select option {
+    background: #1A1A3E;
     color: white;
 }
 
@@ -893,6 +907,12 @@ body.theme-galaxy select,
 body.theme-galaxy textarea {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.theme-galaxy select option,
+body.theme-galaxy select option {
+    background: #1A0533;
     color: white;
 }
 

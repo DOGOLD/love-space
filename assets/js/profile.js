@@ -40,6 +40,42 @@ const provinceCityData = {
     '新疆维吾尔自治区': ['乌鲁木齐市', '克拉玛依市', '吐鲁番市', '哈密市', '昌吉市']
 };
 
+// API 服务模块
+const ApiService = {
+    baseUrl: '/api',
+    
+    getToken() {
+        return localStorage.getItem('token');
+    },
+    
+    async request(method, url, data = null, isFormData = false) {
+        const headers = {
+            'Authorization': `Bearer ${this.getToken()}`
+        };
+        
+        if (!isFormData) {
+            headers['Content-Type'] = 'application/json';
+        }
+        
+        const options = {
+            method,
+            headers,
+            body: isFormData ? data : (data ? JSON.stringify(data) : null)
+        };
+        
+        const response = await fetch(`${this.baseUrl}${url}`, options);
+        return await response.json();
+    },
+    
+    async getUser() {
+        return this.request('GET', '/user');
+    },
+    
+    async updateUser(formData) {
+        return this.request('POST', '/user', formData, true);
+    }
+};
+
 createApp({
     data() {
         return {
@@ -52,7 +88,8 @@ createApp({
                 bio: ''
             },
             provinces: Object.keys(provinceCityData),
-            errorMsg: ''
+            errorMsg: '',
+            loading: false
         };
     },
     computed: {
@@ -81,37 +118,12 @@ createApp({
             // 读取图片并转换为base64
             const reader = new FileReader();
             reader.onload = (e) => {
-                // 压缩图片
-                this.compressImage(e.target.result, (compressed) => {
-                    this.profileForm.avatar = compressed;
-                    this.errorMsg = '';
-                });
+                this.profileForm.avatar = e.target.result;
+                this.errorMsg = '';
             };
             reader.readAsDataURL(file);
         },
-        compressImage(base64, callback, maxWidth = 300, maxHeight = 300, quality = 0.8) {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-
-                // 计算缩放比例
-                if (width > maxWidth || height > maxHeight) {
-                    const ratio = Math.min(maxWidth / width, maxHeight / height);
-                    width *= ratio;
-                    height *= ratio;
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                callback(canvas.toDataURL('image/jpeg', quality));
-            };
-            img.src = base64;
-        },
-        handleSave() {
+        async handleSave() {
             // 校验必填项
             if (!this.profileForm.nickname) {
                 this.errorMsg = '请输入昵称';
@@ -130,78 +142,68 @@ createApp({
                 return;
             }
 
-            // 获取当前用户
-            const currentUser = Storage.currentUser.get();
-            if (!currentUser) {
-                this.errorMsg = '请先登录';
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 1500);
-                return;
-            }
+            this.loading = true;
+            this.errorMsg = '';
 
-            // 保存资料
-            const profileData = {
-                avatar: this.profileForm.avatar,
-                nickname: this.profileForm.nickname,
-                age: this.profileForm.age,
-                province: this.profileForm.province,
-                city: this.profileForm.city,
-                bio: this.profileForm.bio,
-                updatedAt: new Date().toISOString()
-            };
+            try {
+                // 创建 FormData
+                const formData = new FormData();
+                formData.append('nickname', this.profileForm.nickname);
+                formData.append('age', this.profileForm.age);
+                formData.append('province', this.profileForm.province);
+                formData.append('city', this.profileForm.city);
+                formData.append('bio', this.profileForm.bio || '');
 
-            // 更新用户资料
-            if (Storage.users.update(currentUser.username, { profile: profileData })) {
-                // 更新当前用户缓存
-                Storage.currentUser.set({ ...currentUser, profile: profileData });
-                
-                // 初始化用户数据
-                this.initUserData(currentUser.username);
-                
-                // 跳转首页
-                window.location.href = 'home.html';
-            } else {
-                this.errorMsg = '保存失败，请重试';
-            }
-        },
-        initUserData(username) {
-            // 初始化默认纪念日
-            if (!Storage.anniversary.get(username)) {
-                Storage.anniversary.set(username, {
-                    startDate: new Date().toISOString().split('T')[0],
-                    customDates: []
-                });
-            }
-            // 初始化默认语录
-            if (!Storage.quotes.getAll(username).length) {
-                Storage.quotes.saveAll(username, [
-                    '愿得一心人，白首不相离',
-                    '执子之手，与子偕老',
-                    '山有木兮木有枝，心悦君兮君不知',
-                    '玲珑骰子安红豆，入骨相思知不知',
-                    '两情若是久长时，又岂在朝朝暮暮'
-                ]);
+                // 如果有头像，转换为文件上传
+                if (this.profileForm.avatar && this.profileForm.avatar.startsWith('data:')) {
+                    const blob = await (await fetch(this.profileForm.avatar)).blob();
+                    const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+                    formData.append('avatar', file);
+                }
+
+                // 调用 API 保存
+                const result = await ApiService.updateUser(formData);
+
+                if (result.success || !result.error) {
+                    // 保存成功，跳转首页
+                    window.location.href = 'home.html';
+                } else {
+                    this.errorMsg = result.error || '保存失败，请重试';
+                }
+            } catch (error) {
+                console.error('保存失败:', error);
+                this.errorMsg = '网络错误，请稍后重试';
+            } finally {
+                this.loading = false;
             }
         }
     },
-    mounted() {
+    async mounted() {
         // 检查登录状态
-        const currentUser = Storage.currentUser.get();
-        if (!currentUser) {
+        if (!localStorage.getItem('token')) {
             window.location.href = 'index.html';
             return;
         }
 
-        // 如果已完善资料，直接跳转首页
-        if (currentUser.profile && currentUser.profile.nickname && currentUser.profile.city) {
-            window.location.href = 'home.html';
-            return;
+        // 加载已有资料
+        try {
+            const user = await ApiService.getUser();
+            if (user && !user.error) {
+                this.profileForm.nickname = user.nickname || '';
+                this.profileForm.age = user.age || null;
+                this.profileForm.province = user.province || '';
+                this.profileForm.city = user.city || '';
+                this.profileForm.bio = user.bio || '';
+                if (user.avatar) {
+                    this.profileForm.avatar = user.avatar;
+                }
+            }
+        } catch (error) {
+            console.error('加载资料失败:', error);
         }
 
-        // 加载已有资料
-        if (currentUser.profile) {
-            this.profileForm = { ...currentUser.profile };
-        }
+        // 应用主题
+        const theme = localStorage.getItem('theme') || 'theme-pink';
+        document.body.classList.add(theme);
     }
 }).mount('#app');
