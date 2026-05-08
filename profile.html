@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>完善资料 - 甜蜜空间</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FFB6C1',
+                        secondary: '#E6E6FA',
+                        accent: '#87CEEB',
+                        warm: '#FFF5E6',
+                        cream: '#FFFAF0'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 min-h-screen">
+    <div id="app">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 w-full max-w-lg animate-fade-in">
+                <!-- 标题 -->
+                <div class="text-center mb-8">
+                    <div class="text-6xl mb-4">✨</div>
+                    <h1 class="text-3xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">完善个人资料</h1>
+                    <p class="text-gray-500 mt-2">让我们更了解你们</p>
+                </div>
+
+                <!-- 资料表单 -->
+                <form @submit.prevent="handleSave" class="space-y-5">
+                    <!-- 头像上传 -->
+                    <div class="text-center">
+                        <label class="block text-gray-600 mb-3">个人头像</label>
+                        <div class="relative inline-block">
+                            <div class="w-32 h-32 rounded-full bg-gradient-to-r from-pink-200 to-purple-200 flex items-center justify-center overflow-hidden mx-auto cursor-pointer hover:shadow-lg transition-all" @click="$refs.avatarInput.click()">
+                                <img v-if="profileForm.avatar" :src="profileForm.avatar" class="w-full h-full object-cover">
+                                <span v-else class="text-5xl">👤</span>
+                            </div>
+                            <div class="absolute bottom-0 right-0 w-10 h-10 bg-pink-400 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-pink-500 transition-all">
+                                📷
+                            </div>
+                        </div>
+                        <input ref="avatarInput" type="file" accept="image/*" @change="handleAvatarUpload" class="hidden">
+                        <p class="text-gray-400 text-xs mt-2">点击上传头像，支持 JPG/PNG/GIF</p>
+                    </div>
+
+                    <!-- 昵称 -->
+                    <div>
+                        <label class="block text-gray-600 mb-2">昵称 <span class="text-red-400">*</span></label>
+                        <input 
+                            type="text" 
+                            v-model="profileForm.nickname" 
+                            placeholder="请输入你的昵称"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-200 outline-none transition-all"
+                            required
+                        >
+                    </div>
+
+                    <!-- 年龄 -->
+                    <div>
+                        <label class="block text-gray-600 mb-2">年龄 <span class="text-red-400">*</span></label>
+                        <input 
+                            type="number" 
+                            v-model.number="profileForm.age" 
+                            placeholder="请输入年龄"
+                            min="1"
+                            max="150"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-200 outline-none transition-all"
+                            required
+                        >
+                    </div>
+
+                    <!-- 省份 -->
+                    <div>
+                        <label class="block text-gray-600 mb-2">省份 <span class="text-red-400">*</span></label>
+                        <select 
+                            v-model="profileForm.province" 
+                            @change="profileForm.city = ''"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-200 outline-none transition-all"
+                            required
+                        >
+                            <option value="">请选择省份</option>
+                            <option v-for="province in provinces" :key="province" :value="province">{{ province }}</option>
+                        </select>
+                    </div>
+
+                    <!-- 城市 -->
+                    <div>
+                        <label class="block text-gray-600 mb-2">城市 <span class="text-red-400">*</span></label>
+                        <select 
+                            v-model="profileForm.city" 
+                            class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-200 outline-none transition-all"
+                            :disabled="!profileForm.province"
+                            required
+                        >
+                            <option value="">请选择城市</option>
+                            <option v-for="city in currentCities" :key="city" :value="city">{{ city }}</option>
+                        </select>
+                    </div>
+
+                    <!-- 个人简介 -->
+                    <div>
+                        <label class="block text-gray-600 mb-2">个人简介</label>
+                        <textarea 
+                            v-model="profileForm.bio" 
+                            placeholder="写一段关于你们的故事..."
+                            rows="3"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-200 outline-none transition-all resize-none"
+                        ></textarea>
+                    </div>
+
+                    <!-- 错误提示 -->
+                    <div v-if="errorMsg" class="text-red-400 text-sm text-center bg-red-50 p-3 rounded-xl">
+                        {{ errorMsg }}
+                    </div>
+
+                    <!-- 保存按钮 -->
+                    <button 
+                        type="submit"
+                        class="w-full bg-gradient-to-r from-pink-400 to-purple-400 text-white py-3 rounded-xl font-medium hover:shadow-lg hover:scale-105 transition-all duration-300 btn-press"
+                    >
+                        保存并进入首页
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div id="hearts-container"></div>
+    </div>
+
+    <script src="utils/storage.js"></script>
+    <script src="assets/js/profile.js"></script>
+    <script src="assets/js/effects.js"></script>
+</body>
+</html>

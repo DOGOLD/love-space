@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>首页 - 甜蜜空间</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FFB6C1',
+                        secondary: '#E6E6FA',
+                        accent: '#87CEEB',
+                        warm: '#FFF5E6',
+                        cream: '#FFFAF0'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 min-h-screen">
+    <div id="app">
+        <!-- 顶部导航 -->
+        <nav class="bg-white/80 backdrop-blur-sm shadow-sm sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <span class="text-3xl">💕</span>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">甜蜜空间</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button @click="showCoupleBind = true" class="p-2 hover:bg-pink-50 rounded-full transition-all relative">
+                        💑
+                        <span v-if="partner" class="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full text-xs text-white flex items-center justify-center">✓</span>
+                    </button>
+                    <button @click="showSettings = true" class="p-2 hover:bg-pink-50 rounded-full transition-all">⚙️</button>
+                    <button @click="handleLogout" class="p-2 hover:bg-pink-50 rounded-full transition-all">🚪</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主内容区 -->
+        <main class="max-w-7xl mx-auto px-4 py-6 md:py-8">
+            <div class="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                <!-- 个人信息卡片（情侣版） -->
+                <div class="card hover-lift col-span-1">
+                    <div class="text-center">
+                        <!-- 情侣双方头像展示 -->
+                        <div v-if="partner" class="flex items-center justify-center space-x-2 mb-4">
+                            <!-- 自己 -->
+                            <div class="w-20 h-20 rounded-full bg-gradient-to-r from-pink-200 to-purple-200 overflow-hidden border-2 border-pink-300">
+                                <img v-if="userProfile.avatar" :src="userProfile.avatar" class="w-full h-full object-cover">
+                                <div v-else class="w-full h-full flex items-center justify-center text-4xl">👤</div>
+                            </div>
+                            <!-- 爱心连接 -->
+                            <div class="text-3xl animate-pulse">💕</div>
+                            <!-- 伴侣 -->
+                            <div class="w-20 h-20 rounded-full bg-gradient-to-r from-blue-200 to-purple-200 overflow-hidden border-2 border-blue-300">
+                                <img v-if="partner.profile && partner.profile.avatar" :src="partner.profile.avatar" class="w-full h-full object-cover">
+                                <div v-else class="w-full h-full flex items-center justify-center text-4xl">👤</div>
+                            </div>
+                        </div>
+                        <!-- 单人头像（未绑定） -->
+                        <div v-else class="w-24 h-24 rounded-full bg-gradient-to-r from-pink-200 to-purple-200 mx-auto mb-4 overflow-hidden">
+                            <img v-if="userProfile.avatar" :src="userProfile.avatar" class="w-full h-full object-cover">
+                            <div v-else class="w-full h-full flex items-center justify-center text-5xl">👤</div>
+                        </div>
+                        
+                        <!-- 昵称展示 -->
+                        <div v-if="partner" class="flex items-center justify-center space-x-2">
+                            <h2 class="text-lg font-bold text-gray-800">{{ userProfile.nickname || '未设置昵称' }}</h2>
+                            <span class="text-pink-400">💕</span>
+                            <h2 class="text-lg font-bold text-gray-800">{{ partner.profile && partner.profile.nickname || '未设置昵称' }}</h2>
+                        </div>
+                        <h2 v-else class="text-xl font-bold text-gray-800">{{ userProfile.nickname || '未设置昵称' }}</h2>
+                        
+                        <!-- 其他信息 -->
+                        <p class="text-gray-500 text-sm mt-1">
+                            <span v-if="userProfile.age">{{ userProfile.age }}岁</span>
+                            <span v-if="userProfile.age && userProfile.city"> · </span>
+                            <span v-if="userProfile.city">{{ userProfile.city }}</span>
+                            <span v-if="partner && partner.profile && partner.profile.city">
+                                ❤️ {{ partner.profile.city }}
+                            </span>
+                        </p>
+                        <p v-if="userProfile.bio" class="text-gray-600 text-sm mt-3 italic">"{{ userProfile.bio }}"</p>
+                        <button @click="showEditProfile = true" class="mt-4 px-6 py-2 bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-full text-sm hover:shadow-lg transition-all btn-press">编辑资料</button>
+                    </div>
+                </div>
+
+                <!-- 恋爱纪念日 -->
+                <div class="card hover-lift col-span-1 md:col-span-2 lg:col-span-2">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                            <span class="mr-2">💑</span> 恋爱纪念日
+                        </h3>
+                        <button @click="showAddAnniversary = true" class="text-pink-400 hover:text-pink-500 text-sm">+ 添加纪念日</button>
+                    </div>
+                    <div class="text-center py-6">
+                        <div class="text-5xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">{{ anniversaryDays }}</div>
+                        <p class="text-gray-500 mt-2">我们已经相爱了这么多天</p>
+                        <div class="flex justify-center space-x-8 mt-6 text-sm">
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-pink-400">{{ currentTime.hours }}</div>
+                                <div class="text-gray-400">时</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-purple-400">{{ currentTime.minutes }}</div>
+                                <div class="text-gray-400">分</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-blue-400">{{ currentTime.seconds }}</div>
+                                <div class="text-gray-400">秒</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 自定义纪念日列表 -->
+                    <div v-if="customAnniversaries.length" class="mt-4 pt-4 border-t border-gray-100">
+                        <div v-for="(item, index) in customAnniversaries" :key="index" class="flex items-center justify-between py-2">
+                            <span class="text-gray-600">{{ item.name }}</span>
+                            <span class="text-pink-400 text-sm">{{ item.days }}天后</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 情侣相册 -->
+                <div class="card hover-lift col-span-1 md:col-span-2 lg:col-span-3">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                            <span class="mr-2">📸</span> 情侣相册
+                        </h3>
+                        <div class="flex space-x-2">
+                            <button @click="showAddAlbum = true" class="text-pink-400 hover:text-pink-500 text-sm">+ 上传照片</button>
+                            <button @click="showAddAlbumCategory = true" class="text-purple-400 hover:text-purple-500 text-sm">+ 新建分类</button>
+                        </div>
+                    </div>
+                    <!-- 相册分类标签 -->
+                    <div class="flex space-x-2 mb-4 overflow-x-auto pb-2">
+                        <button 
+                            v-for="cat in albumCategories" 
+                            :key="cat"
+                            @click="currentAlbumCategory = cat"
+                            :class="['px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all', currentAlbumCategory === cat ? 'bg-pink-400 text-white' : 'bg-gray-100 text-gray-600 hover:bg-pink-50']"
+                        >{{ cat }}</button>
+                    </div>
+                    <!-- 照片网格 -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                        <div 
+                            v-for="(photo, index) in currentPhotos" 
+                            :key="index"
+                            @click="viewPhoto(photo)"
+                            class="aspect-square rounded-xl overflow-hidden cursor-pointer hover:shadow-lg transition-all hover:scale-105"
+                        >
+                            <img :src="photo.url" class="w-full h-full object-cover">
+                        </div>
+                    </div>
+                    <div v-if="!currentPhotos.length" class="text-center py-12 text-gray-400">
+                        <div class="text-5xl mb-3">📷</div>
+                        <p>还没有照片，快上传你们的甜蜜瞬间吧</p>
+                    </div>
+                </div>
+
+                <!-- 甜蜜语录墙 -->
+                <div class="card hover-lift col-span-1 md:col-span-2 lg:col-span-2">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                            <span class="mr-2">💌</span> 甜蜜语录墙
+                        </h3>
+                        <button @click="showAddQuote = true" class="text-pink-400 hover:text-pink-500 text-sm">+ 添加语录</button>
+                    </div>
+                    <div class="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-6 h-48 overflow-hidden relative">
+                        <transition name="fade" mode="out-in">
+                            <p :key="currentQuoteIndex" class="text-center text-lg text-gray-700 italic leading-relaxed">
+                                "{{ currentQuote }}"
+                            </p>
+                        </transition>
+                    </div>
+                    <div class="flex justify-center mt-4 space-x-2">
+                        <button 
+                            v-for="(quote, index) in quotes.slice(0, 5)" 
+                            :key="index"
+                            @click="currentQuoteIndex = index"
+                            :class="['w-2 h-2 rounded-full transition-all', currentQuoteIndex === index ? 'bg-pink-400 w-6' : 'bg-gray-300']"
+                        ></button>
+                    </div>
+                </div>
+
+                <!-- 宠物养成游戏入口 -->
+                <div class="card hover-lift col-span-1 cursor-pointer" @click="showPetGame = true">
+                    <div class="text-center py-8">
+                        <div class="text-6xl mb-4 animate-pulse-slow">{{ petIcon }}</div>
+                        <h3 class="text-lg font-bold text-gray-800">我的宠物</h3>
+                        <p class="text-gray-500 text-sm mt-2">等级 {{ petLevel }} · 好感度 {{ petAffection }}</p>
+                        <div class="mt-4 px-6 py-2 bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-full text-sm inline-block">进入养成</div>
+                    </div>
+                </div>
+
+                <!-- 恋爱日记 -->
+                <div class="card hover-lift col-span-1 md:col-span-2 lg:col-span-2">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                            <span class="mr-2">📝</span> 恋爱日记
+                        </h3>
+                        <button @click="showAddDiary = true" class="text-pink-400 hover:text-pink-500 text-sm">+ 写日记</button>
+                    </div>
+                    <div class="space-y-3 max-h-64 overflow-y-auto">
+                        <div 
+                            v-for="(diary, index) in diaries.slice(0, 5)" 
+                            :key="index"
+                            class="bg-pink-50 rounded-xl p-4 cursor-pointer hover:bg-pink-100 transition-all"
+                            @click="editDiary(diary)"
+                        >
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-500 text-xs">{{ formatDate(diary.date) }}</span>
+                                <div class="flex space-x-2">
+                                    <button @click.stop="editDiary(diary)" class="text-gray-400 hover:text-pink-400">✏️</button>
+                                    <button @click.stop="deleteDiary(index)" class="text-gray-400 hover:text-red-400">🗑️</button>
+                                </div>
+                            </div>
+                            <p class="text-gray-700 mt-2 line-clamp-2">{{ diary.content }}</p>
+                        </div>
+                    </div>
+                    <div v-if="!diaries.length" class="text-center py-8 text-gray-400">
+                        <div class="text-5xl mb-3">📖</div>
+                        <p>还没有日记，记录你们的甜蜜时刻吧</p>
+                    </div>
+                </div>
+
+                <!-- 心愿清单 -->
+                <div class="card hover-lift col-span-1 md:col-span-2 lg:col-span-3">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                            <span class="mr-2">✨</span> 心愿清单
+                        </h3>
+                        <button @click="showAddWish = true" class="text-pink-400 hover:text-pink-500 text-sm">+ 添加心愿</button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div 
+                            v-for="(wish, index) in wishlist" 
+                            :key="index"
+                            :class="['rounded-xl p-4 flex items-center space-x-3 transition-all', wish.completed ? 'bg-green-50 line-through text-gray-400' : 'bg-pink-50 hover:bg-pink-100']"
+                        >
+                            <button @click="toggleWish(index)" :class="['w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all', wish.completed ? 'bg-green-400 border-green-400 text-white' : 'border-pink-300 hover:border-pink-400']">
+                                <span v-if="wish.completed" class="text-xs">✓</span>
+                            </button>
+                            <span class="flex-1">{{ wish.text }}</span>
+                            <button @click="deleteWish(index)" class="text-gray-400 hover:text-red-400">🗑️</button>
+                        </div>
+                    </div>
+                    <div v-if="!wishlist.length" class="text-center py-8 text-gray-400">
+                        <div class="text-5xl mb-3">🌟</div>
+                        <p>添加你们想一起完成的小心愿吧</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 背景音乐播放器 -->
+        <div class="fixed bottom-20 right-4 z-40">
+            <div class="bg-white/90 backdrop-blur-sm rounded-full shadow-lg p-3 flex items-center space-x-3">
+                <button @click="toggleMusic" class="w-10 h-10 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 text-white flex items-center justify-center hover:shadow-lg transition-all btn-press">
+                    {{ isPlaying ? '⏸️' : '🎵' }}
+                </button>
+                <input type="range" v-model="volume" @input="changeVolume" min="0" max="100" class="w-20 accent-pink-400">
+            </div>
+        </div>
+
+        <!-- 页脚 -->
+        <footer class="bg-white/80 backdrop-blur-sm mt-12 py-8">
+            <div class="max-w-7xl mx-auto px-4 text-center">
+                <p class="text-gray-500">💕 愿你们的爱情，如初见般美好 💕</p>
+                <p class="text-gray-400 text-sm mt-2">甜蜜空间 · 记录每一个心动瞬间</p>
+            </div>
+        </footer>
+
+        <!-- 情侣绑定弹窗 -->
+        <div v-if="showCoupleBind" class="modal-overlay" @click.self="showCoupleBind = false">
+            <div class="modal-content">
+                <!-- 未绑定状态 - 显示绑定界面 -->
+                <template v-if="!partner">
+                    <h3 class="text-xl font-bold text-center mb-6">💑 绑定情侣关系</h3>
+                    <form @submit.prevent="bindCouple" class="space-y-4">
+                        <input 
+                            v-model="coupleUsername" 
+                            placeholder="请输入对方账号" 
+                            class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none"
+                            required
+                        >
+                        <div v-if="coupleBindError" class="text-red-400 text-sm text-center">{{ coupleBindError }}</div>
+                        <div v-if="coupleBindSuccess" class="text-green-400 text-sm text-center">{{ coupleBindSuccess }}</div>
+                        <button type="submit" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-xl hover:shadow-lg transition-all btn-press">绑定</button>
+                    </form>
+                </template>
+                <!-- 已绑定状态 - 显示伴侣信息 -->
+                <template v-else>
+                    <h3 class="text-xl font-bold text-center mb-6">💕 我的伴侣</h3>
+                    <div class="text-center mb-6">
+                        <div class="w-24 h-24 rounded-full bg-gradient-to-r from-blue-200 to-purple-200 mx-auto mb-4 overflow-hidden">
+                            <img v-if="partner.profile && partner.profile.avatar" :src="partner.profile.avatar" class="w-full h-full object-cover">
+                            <div v-else class="w-full h-full flex items-center justify-center text-5xl">👤</div>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-800">{{ partner.profile && partner.profile.nickname || partner.username }}</h4>
+                        <p class="text-gray-500 text-sm mt-1">
+                            <span v-if="partner.profile && partner.profile.age">{{ partner.profile.age }}岁</span>
+                            <span v-if="partner.profile && partner.profile.city"> · {{ partner.profile.city }}</span>
+                        </p>
+                        <p v-if="partner.profile && partner.profile.bio" class="text-gray-600 text-sm mt-2 italic">"{{ partner.profile.bio }}"</p>
+                    </div>
+                    <button @click="unbindCouple" class="w-full py-3 bg-red-50 rounded-xl text-red-500 hover:bg-red-100 transition-all">解除情侣关系</button>
+                </template>
+                <button @click="showCoupleBind = false" class="w-full mt-4 py-3 bg-gray-100 rounded-xl text-gray-600 hover:bg-gray-200 transition-all">关闭</button>
+            </div>
+        </div>
+
+        <!-- 设置弹窗 -->
+        <div v-if="showSettings" class="modal-overlay" @click.self="showSettings = false">
+            <div class="modal-content">
+                <h3 class="text-xl font-bold text-center mb-6">⚙️ 设置中心</h3>
+                <div class="space-y-4">
+                    <button @click="showChangePassword = true; showSettings = false" class="w-full py-3 bg-pink-50 rounded-xl text-gray-700 hover:bg-pink-100 transition-all">修改密码</button>
+                    <button @click="showEditProfile = true; showSettings = false" class="w-full py-3 bg-purple-50 rounded-xl text-gray-700 hover:bg-purple-100 transition-all">编辑资料</button>
+                    <button @click="showThemeSelect = true; showSettings = false" class="w-full py-3 bg-blue-50 rounded-xl text-gray-700 hover:bg-blue-100 transition-all">切换主题配色</button>
+                    <button @click="handleLogout" class="w-full py-3 bg-red-50 rounded-xl text-red-500 hover:bg-red-100 transition-all">退出登录</button>
+                </div>
+                <button @click="showSettings = false" class="w-full mt-6 py-3 bg-gray-100 rounded-xl text-gray-600 hover:bg-gray-200 transition-all">关闭</button>
+            </div>
+        </div>
+
+        <!-- 主题选择弹窗 -->
+        <div v-if="showThemeSelect" class="modal-overlay" @click.self="showThemeSelect = false">
+            <div class="modal-content">
+                <h3 class="text-xl font-bold text-center mb-6">🎨 选择主题</h3>
+                <div class="grid grid-cols-1 gap-4">
+                    <!-- 默认粉紫主题 -->
+                    <div @click="applyTheme('theme-pink')" :class="['p-4 rounded-2xl cursor-pointer transition-all hover:scale-105 border-2', currentThemeClass === 'theme-pink' ? 'border-pink-400 bg-pink-50' : 'border-gray-200 bg-white hover:border-pink-300']">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-pink-300 via-purple-300 to-pink-400 flex items-center justify-center text-2xl">💕</div>
+                            <div>
+                                <h4 class="font-bold text-gray-800">甜蜜粉紫</h4>
+                                <p class="text-gray-500 text-sm">温馨治愈·浪漫柔和</p>
+                            </div>
+                            <div v-if="currentThemeClass === 'theme-pink'" class="ml-auto text-pink-400 text-2xl">✓</div>
+                        </div>
+                    </div>
+                    <!-- 极简液态霓虹主题 -->
+                    <div @click="applyTheme('theme-neon')" :class="['p-4 rounded-2xl cursor-pointer transition-all hover:scale-105 border-2', currentThemeClass === 'theme-neon' ? 'border-cyan-400 bg-cyan-50' : 'border-gray-200 bg-white hover:border-cyan-300']">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-cyan-400 via-purple-500 to-pink-500 flex items-center justify-center text-2xl">✨</div>
+                            <div>
+                                <h4 class="font-bold text-gray-800">极简霓虹</h4>
+                                <p class="text-gray-500 text-sm">流体渐变·未来酷炫</p>
+                            </div>
+                            <div v-if="currentThemeClass === 'theme-neon'" class="ml-auto text-cyan-400 text-2xl">✓</div>
+                        </div>
+                    </div>
+                    <!-- 云端治愈渐变主题 -->
+                    <div @click="applyTheme('theme-cloud')" :class="['p-4 rounded-2xl cursor-pointer transition-all hover:scale-105 border-2', currentThemeClass === 'theme-cloud' ? 'border-sky-400 bg-sky-50' : 'border-gray-200 bg-white hover:border-sky-300']">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-sky-200 via-blue-200 to-pink-200 flex items-center justify-center text-2xl">☁️</div>
+                            <div>
+                                <h4 class="font-bold text-gray-800">云端治愈</h4>
+                                <p class="text-gray-500 text-sm">柔和渐变·温馨干净</p>
+                            </div>
+                            <div v-if="currentThemeClass === 'theme-cloud'" class="ml-auto text-sky-400 text-2xl">✓</div>
+                        </div>
+                    </div>
+                    <!-- 宇宙银河浪漫主题 -->
+                    <div @click="applyTheme('theme-galaxy')" :class="['p-4 rounded-2xl cursor-pointer transition-all hover:scale-105 border-2', currentThemeClass === 'theme-galaxy' ? 'border-purple-400 bg-purple-50' : 'border-gray-200 bg-white hover:border-purple-300']">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-indigo-900 via-purple-700 to-pink-600 flex items-center justify-center text-2xl">🌌</div>
+                            <div>
+                                <h4 class="font-bold text-gray-800">宇宙银河</h4>
+                                <p class="text-gray-500 text-sm">银河星云·浪漫酷炫</p>
+                            </div>
+                            <div v-if="currentThemeClass === 'theme-galaxy'" class="ml-auto text-purple-400 text-2xl">✓</div>
+                        </div>
+                    </div>
+                </div>
+                <button @click="showThemeSelect = false" class="w-full mt-6 py-3 bg-gray-100 rounded-xl text-gray-600 hover:bg-gray-200 transition-all">关闭</button>
+            </div>
+        </div>
+
+        <!-- 编辑资料弹窗 -->
+        <div v-if="showEditProfile" class="modal-overlay" @click.self="showEditProfile = false">
+            <div class="modal-content">
+                <h3 class="text-xl font-bold text-center mb-6">✏️ 编辑资料</h3>
+                <form @submit.prevent="saveProfile" class="space-y-4">
+                    <!-- 显示当前账号 -->
+                    <div class="bg-pink-50 rounded-xl p-3 text-center">
+                        <p class="text-gray-500 text-sm">当前账号</p>
+                        <p class="text-pink-400 font-bold">{{ currentUser.username }}</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-24 h-24 rounded-full bg-gradient-to-r from-pink-200 to-purple-200 mx-auto overflow-hidden cursor-pointer" @click="$refs.editAvatarInput.click()">
+                            <img v-if="editProfileForm.avatar" :src="editProfileForm.avatar" class="w-full h-full object-cover">
+                            <div v-else class="w-full h-full flex items-center justify-center text-5xl">👤</div>
+                        </div>
+                        <input ref="editAvatarInput" type="file" accept="image/*" @change="handleAvatarUpload" class="hidden">
+                    </div>
+                    <div>
+                        <label class="block text-gray-600 mb-1">昵称</label>
+                        <input v-model="editProfileForm.nickname" placeholder="请输入昵称" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-600 mb-1">年龄</label>
+                        <input v-model.number="editProfileForm.age" type="number" placeholder="请输入年龄" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-600 mb-1">省份</label>
+                        <select v-model="editProfileForm.province" @change="editProfileForm.city = ''" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none" required>
+                            <option value="">请选择省份</option>
+                            <option v-for="p in provinces" :key="p" :value="p">{{ p }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-600 mb-1">城市</label>
+                        <select v-model="editProfileForm.city" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none" required>
+                            <option value="">请选择城市</option>
+                            <option v-for="c in currentCities" :key="c" :value="c">{{ c }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-600 mb-1">个人简介</label>
+                        <textarea v-model="editProfileForm.bio" placeholder="请输入个人简介" rows="2" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none resize-none"></textarea>
+                    </div>
+                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-xl hover:shadow-lg transition-all btn-press">保存</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 添加纪念日弹窗 -->
+        <div v-if="showAddAnniversary" class="modal-overlay" @click.self="showAddAnniversary = false">
+            <div class="modal-content">
+                <h3 class="text-xl font-bold text-center mb-6">💑 添加纪念日</h3>
+                <form @submit.prevent="addAnniversary" class="space-y-4">
+                    <input v-model="anniversaryForm.name" placeholder="纪念日名称" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none" required>
+                    <input v-model="anniversaryForm.date" type="date" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none" required>
+                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-xl hover:shadow-lg transition-all btn-press">添加</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 上传照片弹窗 -->
+        <div v-if="showAddAlbum" class="modal-overlay" @click.self="showAddAlbum = false">
+            <div class="modal-content">
+                <h3 class="text-xl font-bold text-center mb-6">📸 上传照片</h3>
+                <form @submit.prevent="uploadPhotos" class="space-y-4">
+                    <select v-model="uploadAlbumCategory" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none">
+                        <option v-for="cat in albumCategories" :key="cat" :value="cat">{{ cat }}</option>
+                    </select>
+                    <input type="file" ref="photoInput" accept="image/*" multiple @change="handlePhotoSelect" class="w-full px-4 py-3 rounded-xl border border-gray-200">
+                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-xl hover:shadow-lg transition-all btn-press">上传</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 新建相册分类弹窗 -->
+        <div v-if="showAddAlbumCategory" class="modal-overlay" @click.self="showAddAlbumCategory = false">
+            <div class="modal-content">
+                <h3 class="text-xl font-bold text-center mb-6">📁 新建相册分类</h3>
+                <form @submit.prevent="addAlbumCategory" class="space-y-4">
+                    <input v-model="newCategoryName" placeholder="分类名称" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none" required>
+                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-xl hover:shadow-lg transition-all btn-press">创建</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 添加语录弹窗 -->
+        <div v-if="showAddQuote" class="modal-overlay" @click.self="showAddQuote = false">
+            <div class="modal-content">
+                <h3 class="text-xl font-bold text-center mb-6">💌 添加语录</h3>
+                <form @submit.prevent="addQuote" class="space-y-4">
+                    <textarea v-model="newQuote" placeholder="输入甜蜜语录..." rows="3" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none resize-none" required></textarea>
+                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-xl hover:shadow-lg transition-all btn-press">添加</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 写日记弹窗 -->
+        <div v-if="showAddDiary" class="modal-overlay" @click.self="showAddDiary = false">
+            <div class="modal-content">
+                <h3 class="text-xl font-bold text-center mb-6">📝 {{ editingDiaryIndex >= 0 ? '编辑日记' : '写日记' }}</h3>
+                <form @submit.prevent="saveDiary" class="space-y-4">
+                    <textarea v-model="diaryForm.content" placeholder="今天发生了什么甜蜜的事..." rows="6" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none resize-none" required></textarea>
+                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-xl hover:shadow-lg transition-all btn-press">{{ editingDiaryIndex >= 0 ? '保存' : '发布' }}</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 添加心愿弹窗 -->
+        <div v-if="showAddWish" class="modal-overlay" @click.self="showAddWish = false">
+            <div class="modal-content">
+                <h3 class="text-xl font-bold text-center mb-6">✨ 添加心愿</h3>
+                <form @submit.prevent="addWish" class="space-y-4">
+                    <input v-model="newWish" placeholder="想和TA一起做的事..." class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none" required>
+                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-xl hover:shadow-lg transition-all btn-press">添加</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 修改密码弹窗 -->
+        <div v-if="showChangePassword" class="modal-overlay" @click.self="showChangePassword = false">
+            <div class="modal-content">
+                <h3 class="text-xl font-bold text-center mb-6">🔒 修改密码</h3>
+                <form @submit.prevent="changePassword" class="space-y-4">
+                    <input v-model="passwordForm.oldPassword" type="password" placeholder="原密码" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none" required>
+                    <input v-model="passwordForm.newPassword" type="password" placeholder="新密码" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none" required>
+                    <input v-model="passwordForm.confirmPassword" type="password" placeholder="确认新密码" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 outline-none" required>
+                    <p v-if="passwordError" class="text-red-400 text-sm">{{ passwordError }}</p>
+                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-xl hover:shadow-lg transition-all btn-press">修改</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 宠物养成游戏弹窗 -->
+        <div v-if="showPetGame" class="modal-overlay" @click.self="closePetGame">
+            <div class="modal-content sm:max-w-lg md:max-w-xl lg:max-w-2xl max-h-[90vh] overflow-y-auto">
+                <!-- 选择宠物界面 -->
+                <div v-if="petGameView === 'select'" class="text-center">
+                    <h3 class="text-xl font-bold mb-2">⚔️ 召唤你的伙伴 ⚔️</h3>
+                    <p class="text-gray-500 text-sm mb-4">选择你的五行灵宠，与它一起冒险！</p>
+                    <!-- 五行选择标签 -->
+                    <div class="flex flex-wrap justify-center gap-2 mb-4">
+                        <button v-for="elem in petElements" :key="elem.id" @click="selectedElement = elem.id" :class="['px-3 py-1 rounded-full text-sm transition-all', selectedElement === elem.id ? 'bg-' + elem.color + '-400 text-white' : 'bg-gray-100 text-gray-600']">
+                            {{ elem.icon }} {{ elem.name }}
+                        </button>
+                    </div>
+                    <!-- 宠物卡片 -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div v-for="p in filteredPetOptions" :key="p.id" @click="selectPet(p.id)" class="p-4 rounded-xl cursor-pointer transition-all hover:scale-105" :style="{ backgroundColor: p.bgColor, border: '2px solid ' + p.borderColor }">
+                            <div class="text-5xl mb-2">{{ p.icon }}</div>
+                            <p class="font-bold text-gray-800">{{ p.name }}</p>
+                            <p class="text-xs text-gray-500">{{ p.element }}属性 · {{ p.elementIcon }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 主游戏界面 -->
+                <div v-else-if="petGameView === 'main'" class="space-y-4">
+                    <!-- 顶部信息栏 -->
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-3xl">{{ pet.icon }}</span>
+                            <div>
+                                <p class="font-bold">{{ pet.name }}</p>
+                                <p class="text-xs text-gray-500">{{ pet.elementName }} · Lv.{{ pet.level }}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <span class="text-sm text-yellow-500">💰 {{ pet.gold || 0 }}</span>
+                            <button @click="petGameView = 'select'" class="text-sm text-pink-400 hover:text-pink-500">更换宠物</button>
+                        </div>
+                    </div>
+
+                    <!-- 经验条 -->
+                    <div class="bg-gray-100 rounded-lg p-2">
+                        <div class="flex justify-between text-xs mb-1">
+                            <span>经验值</span>
+                            <span>{{ pet.exp }}/{{ expToNextLevel }}</span>
+                        </div>
+                        <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div class="h-full bg-gradient-to-r from-pink-400 to-purple-400 transition-all" :style="{ width: (pet.exp / expToNextLevel * 100) + '%' }"></div>
+                        </div>
+                    </div>
+
+                    <!-- 属性条 -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-orange-50 rounded-lg p-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm">🍖 饱腹度</span>
+                                <span class="text-sm font-bold">{{ pet.hunger }}%</span>
+                            </div>
+                            <div class="h-2 bg-orange-100 rounded-full mt-1">
+                                <div class="h-full bg-orange-400 rounded-full" :style="{ width: pet.hunger + '%' }"></div>
+                            </div>
+                        </div>
+                        <div class="bg-blue-50 rounded-lg p-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm">💧 清洁度</span>
+                                <span class="text-sm font-bold">{{ pet.cleanliness }}%</span>
+                            </div>
+                            <div class="h-2 bg-blue-100 rounded-full mt-1">
+                                <div class="h-full bg-blue-400 rounded-full" :style="{ width: pet.cleanliness + '%' }"></div>
+                            </div>
+                        </div>
+                        <div class="bg-yellow-50 rounded-lg p-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm">😊 心情</span>
+                                <span class="text-sm font-bold">{{ pet.mood }}%</span>
+                            </div>
+                            <div class="h-2 bg-yellow-100 rounded-full mt-1">
+                                <div class="h-full bg-yellow-400 rounded-full" :style="{ width: pet.mood + '%' }"></div>
+                            </div>
+                        </div>
+                        <div class="bg-green-50 rounded-lg p-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm">⚡ 体力</span>
+                                <span class="text-sm font-bold">{{ pet.energy }}%</span>
+                            </div>
+                            <div class="h-2 bg-green-100 rounded-full mt-1">
+                                <div class="h-full bg-green-400 rounded-full" :style="{ width: pet.energy + '%' }"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 今日喂养状态 -->
+                    <div class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-3">
+                        <p class="text-sm font-bold text-orange-600 mb-2">🍽️ 今日喂养</p>
+                        <div class="flex justify-around">
+                            <div class="text-center">
+                                <span :class="['text-xl', pet.feedStatus.breakfast ? 'opacity-100' : 'opacity-30']">🌅</span>
+                                <p class="text-xs">早餐</p>
+                                <p class="text-xs" :class="pet.feedStatus.breakfast ? 'text-green-500' : 'text-gray-400'">{{ pet.feedStatus.breakfast ? '已喂' : '待喂' }}</p>
+                            </div>
+                            <div class="text-center">
+                                <span :class="['text-xl', pet.feedStatus.lunch ? 'opacity-100' : 'opacity-30']">☀️</span>
+                                <p class="text-xs">午餐</p>
+                                <p class="text-xs" :class="pet.feedStatus.lunch ? 'text-green-500' : 'text-gray-400'">{{ pet.feedStatus.lunch ? '已喂' : '待喂' }}</p>
+                            </div>
+                            <div class="text-center">
+                                <span :class="['text-xl', pet.feedStatus.dinner ? 'opacity-100' : 'opacity-30']">🌙</span>
+                                <p class="text-xs">晚餐</p>
+                                <p class="text-xs" :class="pet.feedStatus.dinner ? 'text-green-500' : 'text-gray-400'">{{ pet.feedStatus.dinner ? '已喂' : '待喂' }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 今日清洁状态 -->
+                    <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-3">
+                        <div class="flex items-center justify-between">
+                            <p class="text-sm font-bold text-blue-600">🛁 今日清洁</p>
+                            <span :class="pet.cleanStatus && pet.cleanStatus.cleaned ? 'text-green-500' : 'text-gray-400'">
+                                {{ pet.cleanStatus && pet.cleanStatus.cleaned ? '✓ 已清洁' : '待清洁' }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 操作按钮 -->
+                    <div class="grid grid-cols-2 gap-2 sm:gap-3">
+                        <button @click="feedPet" :disabled="!canFeed" class="py-2 sm:py-3 bg-orange-100 rounded-xl hover:bg-orange-200 transition-all btn-press disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base">🍖 喂养</button>
+                        <button @click="cleanPet" :disabled="pet.cleanStatus && pet.cleanStatus.cleaned" class="py-2 sm:py-3 bg-blue-100 rounded-xl hover:bg-blue-200 transition-all btn-press disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base">🛁 清洁</button>
+                        <button @click="startAdventure" class="py-2 sm:py-3 bg-green-100 rounded-xl hover:bg-green-200 transition-all btn-press text-sm sm:text-base">🌲 探险</button>
+                        <button @click="petGameView = 'battle'" class="py-2 sm:py-3 bg-purple-100 rounded-xl hover:bg-purple-200 transition-all btn-press text-sm sm:text-base">⚔️ 对战</button>
+                    </div>
+                </div>
+
+                <!-- 探险界面 -->
+                <div v-else-if="petGameView === 'adventure'" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-bold">🌲 {{ adventure.currentZone }}</h3>
+                        <button @click="petGameView = 'main'" class="text-gray-500 hover:text-gray-700">← 返回</button>
+                    </div>
+                    
+                    <!-- 场景描述 -->
+                    <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 text-center">
+                        <p class="text-gray-700">{{ adventure.description }}</p>
+                    </div>
+
+                    <!-- 遭遇怪物 -->
+                    <div v-if="adventure.enemy" class="bg-red-50 rounded-xl p-4">
+                        <p class="text-center text-red-500 font-bold mb-3">⚔️ 遭遇野生宠物的袭击！</p>
+                        <div class="flex items-center justify-center space-x-4">
+                            <div class="text-center">
+                                <div class="text-4xl">{{ pet.icon }}</div>
+                                <p class="text-sm">{{ pet.name }}</p>
+                            </div>
+                            <div class="text-2xl">VS</div>
+                            <div class="text-center">
+                                <div class="text-4xl">{{ adventure.enemy.icon }}</div>
+                                <p class="text-sm">{{ adventure.enemy.name }}</p>
+                            </div>
+                        </div>
+                        <div class="flex justify-center space-x-3 mt-4">
+                            <button @click="attackEnemy" class="px-6 py-2 bg-red-400 text-white rounded-lg hover:bg-red-500 btn-press">⚔️ 攻击</button>
+                            <button @click="flee" class="px-6 py-2 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300">🏃 逃跑</button>
+                        </div>
+                    </div>
+
+                    <!-- 探险选项 -->
+                    <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                        <button v-for="(option, idx) in adventure.options" :key="idx" @click="exploreOption(option)" class="py-3 sm:py-4 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all text-center text-sm sm:text-base">
+                            {{ option.text }}
+                        </button>
+                    </div>
+
+                    <!-- 探险结果 -->
+                    <div v-if="adventure.result" class="text-center p-4 bg-yellow-50 rounded-xl">
+                        <p class="text-lg">{{ adventure.result.icon }}</p>
+                        <p class="font-bold">{{ adventure.result.text }}</p>
+                        <div class="flex justify-center gap-4 mt-2">
+                            <p v-if="adventure.result.exp" class="text-sm text-green-500">+{{ adventure.result.exp }} 经验</p>
+                            <p v-if="adventure.result.gold > 0" class="text-sm text-yellow-500">+{{ adventure.result.gold }} 金币</p>
+                            <p v-if="adventure.result.gold < 0" class="text-sm text-red-400">{{ adventure.result.gold }} 金币</p>
+                        </div>
+                        <div class="flex justify-center gap-3 mt-4">
+                            <button @click="startAdventure" class="px-4 py-2 bg-green-400 text-white rounded-lg hover:bg-green-500 btn-press">继续探险</button>
+                            <button @click="petGameView = 'main'" class="px-4 py-2 bg-gray-300 text-gray-600 rounded-lg hover:bg-gray-400">返回</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 对战界面 -->
+                <div v-else-if="petGameView === 'battle'" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-bold">⚔️ 情侣对战</h3>
+                        <button @click="petGameView = 'main'" class="text-gray-500 hover:text-gray-700">← 返回</button>
+                    </div>
+
+                    <!-- 伴侣宠物信息 -->
+                    <div v-if="partnerPet" class="bg-purple-50 rounded-xl p-4 text-center">
+                        <p class="text-sm text-purple-600 mb-2">💕 你的伴侣的宠物</p>
+                        <div class="text-5xl mb-2">{{ partnerPet.icon }}</div>
+                        <p class="font-bold">{{ partnerPet.name }}</p>
+                        <p class="text-sm text-gray-500">等级 {{ partnerPet.level }}</p>
+                    </div>
+                    <div v-else class="bg-gray-100 rounded-xl p-4 text-center text-gray-500">
+                        <p>你的伴侣还没有领养宠物</p>
+                    </div>
+
+                    <!-- VS对决 -->
+                    <div class="flex items-center justify-center space-x-4 py-4">
+                        <div class="text-center">
+                            <div class="text-6xl">{{ pet.icon }}</div>
+                            <p class="font-bold">{{ pet.name }}</p>
+                            <p class="text-sm">Lv.{{ pet.level }}</p>
+                        </div>
+                        <div class="text-3xl font-bold text-red-400">VS</div>
+                        <div class="text-center">
+                            <div class="text-6xl">{{ partnerPet ? partnerPet.icon : '❓' }}</div>
+                            <p class="font-bold">{{ partnerPet ? partnerPet.name : '???' }}</p>
+                            <p class="text-sm">{{ partnerPet ? 'Lv.' + partnerPet.level : '' }}</p>
+                        </div>
+                    </div>
+
+                    <!-- 对战按钮 -->
+                    <button v-if="partnerPet" @click="startCoupleBattle" class="w-full py-4 bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-xl font-bold hover:shadow-lg transition-all btn-press">
+                        ⚔️ 开始对战！
+                    </button>
+
+                    <!-- 对战结果 -->
+                    <div v-if="battleResult" class="text-center p-4 rounded-xl" :class="battleResult.win ? 'bg-green-50' : 'bg-red-50'">
+                        <p class="text-4xl mb-2">{{ battleResult.win ? '🏆' : '😢' }}</p>
+                        <p class="font-bold">{{ battleResult.text }}</p>
+                        <div class="flex justify-center gap-4 mt-2">
+                            <p v-if="battleResult.exp" class="text-sm text-green-500">+{{ battleResult.exp }} 经验</p>
+                            <p v-if="battleResult.gold > 0" class="text-sm text-yellow-500">+{{ battleResult.gold }} 金币</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 照片预览弹窗 -->
+        <div v-if="showPhotoViewer" class="modal-overlay" @click.self="showPhotoViewer = false">
+            <div class="modal-content max-w-3xl p-0 overflow-hidden">
+                <img :src="viewingPhoto" class="w-full">
+            </div>
+        </div>
+
+        <div id="particles-container"></div>
+    </div>
+
+    <script src="utils/storage.js"></script>
+    <script src="assets/js/home.js"></script>
+    <script src="assets/js/effects.js"></script>
+</body>
+</html>

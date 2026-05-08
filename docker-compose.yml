@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  love-space:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: love-space
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

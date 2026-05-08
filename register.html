@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - 甜蜜空间</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FFB6C1',
+                        secondary: '#E6E6FA',
+                        accent: '#87CEEB',
+                        warm: '#FFF5E6',
+                        cream: '#FFFAF0'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 min-h-screen">
+    <div id="app">
+        <div class="flex items-center justify-center min-h-screen p-4 sm:p-6 md:p-8">
+            <div class="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-6 sm:p-8 w-full max-w-md animate-fade-in">
+                <!-- 标题 -->
+                <div class="text-center mb-6 sm:mb-8">
+                    <div class="text-5xl sm:text-6xl mb-3 sm:mb-4">💖</div>
+                    <h1 class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">注册账号</h1>
+                    <p class="text-gray-500 mt-2 text-sm sm:text-base">开启你们的甜蜜之旅</p>
+                </div>
+
+                <!-- 注册表单 -->
+                <form onsubmit="return false;" class="space-y-5">
+                    <div>
+                        <label class="block text-gray-600 mb-2">账号</label>
+                        <input 
+                            type="text" 
+                            v-model="registerForm.username" 
+                            @input="validateUsername"
+                            placeholder="6位以上，仅支持英文/数字"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-200 outline-none transition-all"
+                        >
+                        <p class="text-red-400 text-xs mt-1" :style="{ visibility: usernameError ? 'visible' : 'hidden' }">{{ usernameError }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-gray-600 mb-2">密码</label>
+                        <input 
+                            type="password" 
+                            v-model="registerForm.password" 
+                            @input="validatePassword"
+                            placeholder="6位以上，仅支持英文/数字"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-200 outline-none transition-all"
+                        >
+                        <p class="text-red-400 text-xs mt-1" :style="{ visibility: passwordError ? 'visible' : 'hidden' }">{{ passwordError }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-gray-600 mb-2">确认密码</label>
+                        <input 
+                            type="password" 
+                            v-model="registerForm.confirmPassword" 
+                            @input="validateConfirmPassword"
+                            placeholder="请再次输入密码"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-200 outline-none transition-all"
+                        >
+                        <p class="text-red-400 text-xs mt-1" :style="{ visibility: confirmPasswordError ? 'visible' : 'hidden' }">{{ confirmPasswordError }}</p>
+                    </div>
+                    <div class="text-green-400 text-sm text-center bg-green-50 p-3 rounded-xl" :style="{ visibility: successMsg ? 'visible' : 'hidden' }">
+                        {{ successMsg }}
+                    </div>
+                    <div class="text-red-400 text-sm text-center bg-red-50 p-3 rounded-xl" :style="{ visibility: errorMsg ? 'visible' : 'hidden' }">
+                        {{ errorMsg }}
+                    </div>
+                    <button 
+                        @click="handleRegister"
+                        :disabled="!canSubmit"
+                        class="w-full bg-gradient-to-r from-pink-400 to-purple-400 text-white py-3 rounded-xl font-medium hover:shadow-lg hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed btn-press"
+                    >
+                        注册
+                    </button>
+                </form>
+
+                <!-- 登录入口 -->
+                <div class="text-center mt-6">
+                    <span class="text-gray-500">已有账号？</span>
+                    <a href="index.html" class="text-pink-400 hover:text-pink-500 ml-1">立即登录</a>
+                </div>
+            </div>
+        </div>
+
+        <div id="hearts-container"></div>
+    </div>
+
+    <script src="utils/storage.js"></script>
+    <script>
+        const { createApp } = Vue;
+        
+        createApp({
+            data() {
+                return {
+                    registerForm: {
+                        username: '',
+                        password: '',
+                        confirmPassword: ''
+                    },
+                    usernameError: '',
+                    passwordError: '',
+                    confirmPasswordError: '',
+                    successMsg: '',
+                    errorMsg: ''
+                };
+            },
+            computed: {
+                canSubmit() {
+                    return !this.usernameError && !this.passwordError && 
+                           !this.confirmPasswordError && this.registerForm.username && 
+                           this.registerForm.password && this.registerForm.confirmPassword;
+                }
+            },
+            methods: {
+                validateUsername() {
+                    const username = this.registerForm.username;
+                    if (!username) {
+                        this.usernameError = '';
+                        return;
+                    }
+                    if (username.length < 6) {
+                        this.usernameError = '账号长度至少6个字符';
+                        return;
+                    }
+                    if (!/^[a-zA-Z0-9]+$/.test(username)) {
+                        this.usernameError = '账号仅支持纯英文、英文+数字、纯数字';
+                        return;
+                    }
+                    if (Storage.users.findByUsername(username)) {
+                        this.usernameError = '该账号已被注册';
+                        return;
+                    }
+                    this.usernameError = '';
+                },
+                validatePassword() {
+                    const password = this.registerForm.password;
+                    if (!password) {
+                        this.passwordError = '';
+                        return;
+                    }
+                    if (password.length < 6) {
+                        this.passwordError = '密码长度至少6个字符';
+                        return;
+                    }
+                    if (!/^[a-zA-Z0-9]+$/.test(password)) {
+                        this.passwordError = '密码仅支持英文和数字';
+                        return;
+                    }
+                    this.passwordError = '';
+                    this.validateConfirmPassword();
+                },
+                validateConfirmPassword() {
+                    const confirmPassword = this.registerForm.confirmPassword;
+                    if (!confirmPassword) {
+                        this.confirmPasswordError = '';
+                        return;
+                    }
+                    if (confirmPassword !== this.registerForm.password) {
+                        this.confirmPasswordError = '两次输入的密码不一致';
+                        return;
+                    }
+                    this.confirmPasswordError = '';
+                },
+                handleRegister() {
+                    this.errorMsg = '';
+                    this.successMsg = '';
+                    
+                    this.validateUsername();
+                    this.validatePassword();
+                    this.validateConfirmPassword();
+
+                    if (this.usernameError || this.passwordError || this.confirmPasswordError) {
+                        this.errorMsg = '请检查输入是否符合要求';
+                        return;
+                    }
+
+                    const newUser = {
+                        username: this.registerForm.username,
+                        password: this.registerForm.password,
+                        profile: null,
+                        createdAt: new Date().toISOString()
+                    };
+
+                    if (Storage.users.add(newUser)) {
+                        this.successMsg = '注册成功！即将跳转到登录页...';
+                        this.errorMsg = '';
+                        setTimeout(() => {
+                            window.location.href = 'index.html';
+                        }, 3000);
+                    } else {
+                        this.errorMsg = '注册失败，请重试';
+                    }
+                }
+            },
+            mounted() {
+                console.log('注册页面Vue已成功挂载');
+            }
+        }).mount('#app');
+    </script>
+    <script src="assets/js/effects.js"></script>
+</body>
+</html>
