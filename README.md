@@ -1,13 +1,14 @@
 # 💕 甜蜜空间 - 情侣专属网页
 
-一个温馨治愈风格的情侣专属网页应用，内置五行宠物养成游戏、情侣绑定、恋爱纪念日、相册、日记、心愿清单等功能。
+一个温馨治愈风格的情侣专属网页应用，内置五行宠物养成游戏、情侣绑定、恋爱纪念日、相册、日记、心愿清单、音乐播放器等功能。
 
 ## ✨ 功能特性
 
 ### 👫 情侣系统
-- **账号注册/登录**：支持多账号独立登录，LocalStorage 本地存储
+- **账号注册/登录**：支持多账号独立登录，后端服务器数据存储
 - **情侣绑定**：输入对方账号即可绑定情侣关系，支持解除绑定
 - **个人资料**：头像上传、昵称、年龄、省份城市、个人简介
+- **恋爱时间**：可设置恋爱开始日期，自动计算相爱天数
 
 ### 🐾 五行宠物养成游戏
 - **五行属性**：金、木、水、火、土，每种属性两只宠物可选
@@ -27,12 +28,12 @@
 | 宇宙银河 | 银河星云·浪漫酷炫 | 流星划过 |
 
 ### 📸 其他功能
-- **恋爱纪念日**：在一起天数计时，自定义纪念日
-- **情侣相册**：分类上传照片，网格展示
-- **甜蜜语录墙**：轮播展示甜蜜语录
-- **恋爱日记**：记录甜蜜时刻
-- **心愿清单**：一起完成的小心愿
-- **背景音乐**：可调节音量的背景音乐播放器
+- **恋爱纪念日**：在一起天数计时，自定义纪念日（双方同步）
+- **情侣相册**：分类上传照片，网格展示（双方照片互通）
+- **甜蜜语录墙**：轮播展示甜蜜语录（双方语录互通）
+- **恋爱日记**：记录甜蜜时刻（双方日记互通）
+- **心愿清单**：一起完成的小心愿（双方心愿互通）
+- **音乐播放器**：上传自己喜欢的音乐，支持播放列表、进度调节、音量控制（双方音乐互通）
 
 ## 🛠 技术栈
 
@@ -41,8 +42,10 @@
 | HTML5 + CSS3 | 页面结构与样式 |
 | Tailwind CSS | 原子化 CSS 框架 |
 | Vue 3 | 前端响应式框架 |
-| LocalStorage | 本地数据持久化 |
-| Nginx | Web 服务器 |
+| Node.js + Express | 后端服务器 |
+| SQLite3 | 轻量级数据库 |
+| Multer | 文件上传处理 |
+| JWT | 用户身份认证 |
 
 ## 📁 项目结构
 
@@ -52,76 +55,100 @@ couple-web/
 ├── register.html           # 注册页面
 ├── home.html               # 首页（主功能页面）
 ├── profile.html            # 个人资料页
+├── server.js               # 后端服务器主文件
 ├── assets/
 │   ├── css/
 │   │   └── style.css       # 全局样式 + 主题系统 + 响应式
 │   └── js/
 │       ├── auth.js         # 登录注册逻辑
 │       ├── home.js         # 首页 + 宠物游戏核心逻辑
-│       ├── effects.js      # 动态特效（飘落物等）
-│       └── profile.js      # 个人资料逻辑
-├── utils/
-│   └── storage.js          # LocalStorage 工具类
-├── nginx.conf              # Nginx 配置
-├── Dockerfile              # Docker 镜像构建
-├── docker-compose.yml      # Docker Compose 编排
-├── .dockerignore
+│       ├── profile.js      # 个人资料逻辑
+│       └── api.js          # API 请求封装
+├── uploads/                # 上传文件存储目录（重要！需要手动创建）
+├── data/                   # SQLite 数据库目录
 ├── .gitignore
 └── README.md
 ```
 
 ## 🚀 快速开始
 
-### 方式一：直接部署
+### ⚠️ 重要前置条件
 
-将项目文件放到任意 Web 服务器目录下即可，无需构建步骤。
+**必须先创建以下目录！** 否则文件上传会失败：
 
 ```bash
-# 使用 Nginx
-cp -r couple-web /var/www/
-# 配置 nginx.conf 到 /etc/nginx/sites-available/
-nginx -s reload
+cd couple-web
+mkdir -p uploads
+mkdir -p data
 ```
 
-### 方式二：Docker 部署（推荐）
-
-支持 **amd64** 和 **arm64** 架构（包括 Apple Silicon、树莓派等 ARM 设备）。
+### 本地开发运行
 
 ```bash
-# 构建并启动
-docker-compose up -d
-
-# 或者手动构建
-docker build -t love-space .
-docker run -d -p 8080:80 --name love-space love-space
+cd couple-web
+npm install
+# 或者直接运行
+node server.js
 ```
 
-访问 `http://localhost:8080` 即可。
+默认访问 `http://localhost:3000`
 
-### 方式三：多架构构建并推送
+### 服务器部署
 
 ```bash
-# 创建 buildx 构建器
-docker buildx create --name multiarch --use
+# 1. 上传项目文件到服务器
+scp -r couple-web user@your-server:/opt/love-space/
 
-# 构建多架构镜像
-docker buildx build --platform linux/amd64,linux/arm64 -t your-username/love-space:latest --push .
+# 2. 进入目录并创建必要文件夹（重要！）
+cd /opt/love-space
+mkdir -p uploads
+mkdir -p data
+chmod 755 uploads  # 确保有写入权限
+
+# 3. 安装依赖（可选，项目已内置）
+npm install
+
+# 4. 后台运行服务
+PORT=3001 nohup node server.js > app.log 2>&1 &
+
+# 5. 查看运行日志
+tail -f app.log
 ```
 
-## 🌐 Debian 服务器部署
+### 使用 PM2 管理进程（推荐）
 
 ```bash
-# 1. 安装 Nginx
-sudo apt update && sudo apt install -y nginx
+npm install -g pm2
+pm2 start server.js --name love-space
+pm2 save
+pm2 startup
+```
 
-# 2. 上传项目文件
-scp -r couple-web user@your-server:/var/www/
+## 🌐 Nginx 反向代理配置
 
-# 3. 配置 Nginx（参考 nginx.conf）
-sudo cp /var/www/couple-web/nginx.conf /etc/nginx/conf.d/love-space.conf
-sudo nginx -t && sudo nginx -s reload
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
 
-# 4. 配置 HTTPS（可选）
+    location / {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # 上传文件大小限制
+    client_max_body_size 20M;
+}
+```
+
+配置 HTTPS（可选，推荐）：
+```bash
 sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d your-domain.com
 ```
@@ -135,14 +162,12 @@ sudo certbot --nginx -d your-domain.com
 
 ## 🔒 数据存储说明
 
-所有用户数据存储在浏览器 LocalStorage 中：
+所有用户数据存储在后端 SQLite 数据库中：
 - 用户账号和资料
 - 情侣绑定关系
 - 宠物数据（等级、经验、属性、喂养状态）
 - 主题设置
-- 相册、日记、心愿清单等
-
-> ⚠️ 注意：LocalStorage 是浏览器级别的存储，不同浏览器/设备之间的数据不互通。建议情侣双方在同一设备上使用不同浏览器（或使用浏览器的无痕模式）来分别登录。
+- 相册、日记、心愿清单、音乐等
 
 ## 📄 License
 
