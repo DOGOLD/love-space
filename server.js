@@ -343,11 +343,23 @@ app.get('/api/partner', authenticateToken, (req, res) => {
             return res.json(null);
         }
         
-        db.get('SELECT id, username, nickname, avatar FROM users WHERE id = ?', [result.partner_id], (err, partner) => {
+        db.get('SELECT id, username, nickname, avatar, age, province, city, bio, love_start_date FROM users WHERE id = ?', [result.partner_id], (err, partner) => {
             if (err || !partner) {
                 return res.json(null);
             }
-            res.json(partner);
+            res.json({
+                id: partner.id,
+                username: partner.username,
+                profile: {
+                    nickname: partner.nickname,
+                    avatar: partner.avatar,
+                    age: partner.age,
+                    province: partner.province,
+                    city: partner.city,
+                    bio: partner.bio,
+                    love_start_date: partner.love_start_date
+                }
+            });
         });
     });
 });
@@ -616,9 +628,23 @@ app.delete('/api/wishes/:id', authenticateToken, (req, res) => {
 app.get('/api/anniversaries', authenticateToken, (req, res) => {
     const userId = getUserId(req);
     
-    db.all('SELECT * FROM anniversaries WHERE user_id = ? ORDER BY date ASC', [userId], (err, anniversaries) => {
-        if (err) return res.status(500).json({ error: '获取纪念日失败' });
-        res.json(anniversaries);
+    db.get('SELECT partner_id FROM users WHERE id = ?', [userId], (err, user) => {
+        if (err) return res.status(500).json({ error: '获取失败' });
+        
+        let sql = 'SELECT * FROM anniversaries WHERE user_id = ?';
+        let params = [userId];
+        
+        if (user && user.partner_id) {
+            sql += ' OR user_id = ?';
+            params.push(user.partner_id);
+        }
+        
+        sql += ' ORDER BY date ASC';
+        
+        db.all(sql, params, (err, anniversaries) => {
+            if (err) return res.status(500).json({ error: '获取纪念日失败' });
+            res.json(anniversaries);
+        });
     });
 });
 
