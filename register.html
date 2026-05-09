@@ -148,8 +148,8 @@
                         this.passwordError = '密码长度至少6个字符';
                         return;
                     }
-                    if (!/^[a-zA-Z0-9]+$/.test(password)) {
-                        this.passwordError = '密码仅支持英文和数字';
+                    if (/[\u4e00-\u9fa5]/.test(password)) {
+                        this.passwordError = '密码不能包含中文';
                         return;
                     }
                     this.passwordError = '';
