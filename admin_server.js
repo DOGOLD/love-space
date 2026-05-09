@@ -12,6 +12,7 @@ const SECRET_KEY = 'love-space-admin-secret-key-2024';
 // 中间件
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname)));
 
 // 数据库连接
 const dbPath = path.join(__dirname, 'data', 'database.sqlite');
