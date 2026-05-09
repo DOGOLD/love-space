@@ -117,6 +117,10 @@ const ApiService = {
         return this.request('POST', '/anniversaries', { name, date });
     },
     
+    async deleteAnniversary(id) {
+        return this.request('DELETE', `/anniversaries/${id}`);
+    },
+    
     // 宠物相关
     async getPet() {
         return this.request('GET', '/pet');
@@ -634,6 +638,13 @@ createApp({
             this.showAddAnniversary = false;
             this.anniversaryForm = { name: '', date: '' };
             await this.loadAnniversaries();
+        },
+        
+        async deleteAnniversary(id) {
+            if (confirm('确定要删除这个纪念日吗？')) {
+                await ApiService.deleteAnniversary(id);
+                await this.loadAnniversaries();
+            }
         },
         
         // 照片相关

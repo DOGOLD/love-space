@@ -510,6 +510,7 @@
                             this.isLoggedIn = true;
                             localStorage.setItem('adminToken', this.token);
                             this.loadStats();
+                            this.loadUsers();
                         } else {
                             this.errorMsg = data.error || '登录失败';
                         }

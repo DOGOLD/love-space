@@ -663,6 +663,17 @@ app.post('/api/anniversaries', authenticateToken, (req, res) => {
     });
 });
 
+// 删除纪念日
+app.delete('/api/anniversaries/:id', authenticateToken, (req, res) => {
+    const userId = getUserId(req);
+    const { id } = req.params;
+    
+    db.run('DELETE FROM anniversaries WHERE id = ? AND user_id = ?', [id, userId], (err) => {
+        if (err) return res.status(500).json({ error: '删除失败' });
+        res.json({ success: true });
+    });
+});
+
 // 获取音乐列表（包含情侣双方）
 app.get('/api/music', authenticateToken, (req, res) => {
     const userId = getUserId(req);

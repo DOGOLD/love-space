@@ -149,7 +149,7 @@ createApp({
                 // 创建 FormData
                 const formData = new FormData();
                 formData.append('nickname', this.profileForm.nickname);
-                formData.append('age', this.profileForm.age);
+                formData.append('age', this.profileForm.age ? String(this.profileForm.age) : '');
                 formData.append('province', this.profileForm.province);
                 formData.append('city', this.profileForm.city);
                 formData.append('bio', this.profileForm.bio || '');
