@@ -4,6 +4,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const ADMIN_PORT = process.env.ADMIN_PORT || 3002;
@@ -14,12 +15,49 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
+// 确保data目录存在
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+}
+
 // 数据库连接
 const dbPath = path.join(__dirname, 'data', 'database.sqlite');
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) console.error('数据库连接失败:', err);
-    else console.log('已连接到数据库');
+    else {
+        console.log('已连接到数据库');
+        initAdminTable();
+    }
 });
+
+// 初始化管理员表
+const initAdminTable = () => {
+    db.run(`
+        CREATE TABLE IF NOT EXISTS admins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `, (err) => {
+        if (err) {
+            console.error('创建管理员表失败:', err);
+        } else {
+            // 创建默认管理员账号（如果不存在）
+            const defaultAdminPassword = bcrypt.hashSync('admin123', 10);
+            db.run(`
+                INSERT OR IGNORE INTO admins (username, password) VALUES (?, ?)
+            `, ['admin', defaultAdminPassword], (err) => {
+                if (err) {
+                    console.log('默认管理员已存在');
+                } else {
+                    console.log('默认管理员账号已创建: admin / admin123');
+                }
+            });
+        }
+    });
+};
 
 // 管理员认证中间件
 const authenticateAdmin = (req, res, next) => {
@@ -45,11 +83,13 @@ app.post('/api/admin/login', (req, res) => {
     
     db.get('SELECT * FROM admins WHERE username = ?', [username], async (err, admin) => {
         if (err || !admin) {
+            console.log('管理员不存在:', username);
             return res.status(400).json({ error: '账号或密码错误' });
         }
         
         const valid = await bcrypt.compare(password, admin.password);
         if (!valid) {
+            console.log('密码错误');
             return res.status(400).json({ error: '账号或密码错误' });
         }
         
