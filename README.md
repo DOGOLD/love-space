@@ -35,6 +35,12 @@
 - **心愿清单**：一起完成的小心愿（双方心愿互通）
 - **音乐播放器**：上传自己喜欢的音乐，支持播放列表、进度调节、音量控制（双方音乐互通）
 
+### 🔐 管理员后台
+- **独立管理员账号**：与普通用户分离，安全可靠
+- **用户管理**：查看所有用户、删除用户、查看用户详细信息
+- **情侣绑定管理**：查看情侣绑定关系，强制解除绑定
+- **内容管理**：管理语录、日记、照片、心愿等用户生成内容
+
 ## 🛠 技术栈
 
 | 技术 | 说明 |
@@ -52,20 +58,22 @@
 ```
 couple-web/
 ├── index.html              # 登录页面
-├── register.html           # 注册页面
-├── home.html               # 首页（主功能页面）
-├── profile.html            # 个人资料页
-├── server.js               # 后端服务器主文件
+├── register.html          # 注册页面
+├── home.html              # 首页（主功能页面）
+├── profile.html           # 个人资料页
+├── admin.html             # 管理员后台页面
+├── server.js              # 后端服务器主文件
+├── admin_server.js        # 管理员后台 API 服务器
 ├── assets/
 │   ├── css/
-│   │   └── style.css       # 全局样式 + 主题系统 + 响应式
+│   │   └── style.css      # 全局样式 + 主题系统 + 响应式
 │   └── js/
-│       ├── auth.js         # 登录注册逻辑
-│       ├── home.js         # 首页 + 宠物游戏核心逻辑
-│       ├── profile.js      # 个人资料逻辑
-│       └── api.js          # API 请求封装
-├── uploads/                # 上传文件存储目录（重要！需要手动创建）
-├── data/                   # SQLite 数据库目录
+│       ├── auth.js        # 登录注册逻辑
+│       ├── home.js        # 首页 + 宠物游戏核心逻辑
+│       ├── profile.js     # 个人资料逻辑
+│       └── api.js         # API 请求封装
+├── uploads/               # 上传文件存储目录（重要！需要手动创建）
+├── data/                  # SQLite 数据库目录
 ├── .gitignore
 └── README.md
 ```
@@ -87,11 +95,15 @@ mkdir -p data
 ```bash
 cd couple-web
 npm install
-# 或者直接运行
+# 运行主服务器
 node server.js
+# 运行管理员服务器（可选）
+node admin_server.js
 ```
 
-默认访问 `http://localhost:3000`
+默认访问：
+- 主应用：`http://localhost:3000`
+- 管理员后台：`http://localhost:3002`
 
 ### 服务器部署
 
@@ -111,21 +123,70 @@ npm install
 # 4. 后台运行服务
 PORT=3001 nohup node server.js > app.log 2>&1 &
 
-# 5. 查看运行日志
+# 5. 运行管理员后台（可选）
+PORT=3002 nohup node admin_server.js > admin.log 2>&1 &
+
+# 6. 查看运行日志
 tail -f app.log
 ```
 
-### 使用 PM2 管理进程（推荐）
+## 🔄 设置开机自启
+
+使用 systemd 设置开机自启：
 
 ```bash
-npm install -g pm2
-pm2 start server.js --name love-space
-pm2 save
-pm2 startup
+# 创建服务文件
+sudo tee /etc/systemd/system/love-space.service > /dev/null <<EOF
+[Unit]
+Description=Love Space Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/love-space
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 重新加载 systemd
+sudo systemctl daemon-reload
+
+# 启用开机自启
+sudo systemctl enable love-space
+
+# 立即启动服务
+sudo systemctl start love-space
+
+# 检查服务状态
+sudo systemctl status love-space
 ```
+
+## 🔐 管理员后台
+
+### 访问地址
+`http://your-domain.com/admin.html` 或 `http://your-server-ip:3002/admin.html`
+
+### 默认账号
+- **用户名**：admin
+- **密码**：admin123
+
+⚠️ **重要**：首次登录后请立即修改默认密码！
+
+### 功能说明
+1. **数据概览**：查看用户总数、情侣对数、内容统计等
+2. **用户管理**：搜索、查看详情、删除用户
+3. **情侣绑定**：强制解除指定用户的情侣绑定关系
+4. **内容管理**：查看和删除语录、日记、照片、心愿
+5. **设置**：修改管理员密码
 
 ## 🌐 Nginx 反向代理配置
 
+### 主应用
 ```nginx
 server {
     listen 80;
@@ -147,7 +208,22 @@ server {
 }
 ```
 
-配置 HTTPS（可选，推荐）：
+### 管理员后台（可选）
+```nginx
+server {
+    listen 80;
+    server_name admin.your-domain.com;
+
+    location / {
+        proxy_pass http://localhost:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+### 配置 HTTPS（可选，推荐）
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d your-domain.com
