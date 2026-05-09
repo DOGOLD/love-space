@@ -369,6 +369,11 @@ createApp({
         }
     },
     methods: {
+        // 跳转到农场
+        goToFarm() {
+            window.location.href = 'couple_farm.html';
+        },
+        
         // 初始化数据
         async initData() {
             await Promise.all([

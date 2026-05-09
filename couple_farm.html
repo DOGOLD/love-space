@@ -1,0 +1,816 @@
+<!--
+  情侣农场 v1.0.0
+  特点：双人协作经营农场，必须情侣双方共同操作才能高效产出
+  核心机制：双人播种、协作浇水/除虫、同时收获、留言板、宠物狗
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>情侣农场 - 甜蜜空间</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4CAF50',
+                        secondary: '#8BC34A',
+                        accent: '#FF9800',
+                        warm: '#FFF5E6',
+                        cream: '#FFFAF0',
+                        earth: '#8B4513',
+                        earthLight: '#D2B48C'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        @keyframes shake {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-5deg); }
+            75% { transform: rotate(5deg); }
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+        }
+        @keyframes grow {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-bounce-slow { animation: bounce 2s infinite; }
+        .animate-shake { animation: shake 0.5s infinite; }
+        .animate-float { animation: float 3s infinite; }
+        .animate-grow { animation: grow 0.3s ease-out; }
+        
+        .land-cell {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .land-cell:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .land-locked {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        
+        .crop-stage-0 { filter: grayscale(100%); }
+        .crop-stage-1 { filter: hue-rotate(30deg); }
+        .crop-stage-2 { filter: hue-rotate(60deg) brightness(1.1); }
+        .crop-stage-3 { filter: hue-rotate(90deg) brightness(1.2) saturate(1.3); }
+        
+        .modal-overlay {
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+        }
+        
+        .love-contract {
+            background: linear-gradient(135deg, #FFE4E1 0%, #FFF0F5 100%);
+            border: 3px solid #FF69B4;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(255,105,180,0.3);
+        }
+        
+        .notification-toast {
+            animation: slideIn 0.3s ease-out, fadeOut 0.3s ease-in 2.7s forwards;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        
+        .dog-woof {
+            animation: woof 0.5s ease-in-out;
+        }
+        @keyframes woof {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-green-50 via-yellow-50 to-orange-50 min-h-screen">
+    <div id="app">
+        <!-- 顶部导航 -->
+        <header class="bg-white/90 backdrop-blur-sm shadow-sm sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <button @click="goBack" class="text-gray-600 hover:text-gray-800 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+                    <h1 class="text-xl font-bold text-green-600">🌾 情侣农场</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2 bg-yellow-100 px-3 py-1 rounded-full">
+                        <span>💰</span>
+                        <span class="font-bold text-yellow-700">{{ farmState.coins }}</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-green-100 px-3 py-1 rounded-full">
+                        <span>📦</span>
+                        <span class="font-bold text-green-700">{{ Object.values(farmState.warehouse).reduce((a, b) => a + b, 0) }}</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <!-- 左侧：伴侣状态和留言板 -->
+                <div class="lg:col-span-1 space-y-4">
+                    <!-- 伴侣状态卡片 -->
+                    <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-4">
+                        <h3 class="font-bold text-gray-700 mb-3">💑 伴侣状态</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-10 h-10 rounded-full bg-gradient-to-r from-pink-300 to-purple-300 flex items-center justify-center">
+                                        👤
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-sm">{{ currentUser }}</p>
+                                        <p class="text-xs text-green-500">● 在线</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-10 h-10 rounded-full bg-gradient-to-r from-blue-300 to-cyan-300 flex items-center justify-center">
+                                        {{ partnerOnline ? '👤' : '😴' }}
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-sm">{{ partnerName }}</p>
+                                        <p :class="partnerOnline ? 'text-green-500' : 'text-gray-400'" class="text-xs">
+                                            {{ partnerOnline ? '● 在线' : '● 离线' }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 连续共同耕种天数 -->
+                        <div class="mt-4 pt-4 border-t border-gray-100">
+                            <div class="text-center">
+                                <p class="text-sm text-gray-500">连续共同耕种</p>
+                                <p class="text-2xl font-bold text-orange-500">{{ farmState.consecutiveDays }}天</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 留言板 -->
+                    <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-4">
+                        <h3 class="font-bold text-gray-700 mb-3 flex items-center justify-between">
+                            <span>📝 留言板</span>
+                            <button @click="showMessageBoard = !showMessageBoard" class="text-xs text-pink-400 hover:text-pink-500">
+                                {{ showMessageBoard ? '收起' : '展开' }}
+                            </button>
+                        </h3>
+                        <div v-if="showMessageBoard" class="space-y-2 max-h-48 overflow-y-auto">
+                            <div v-for="(msg, index) in farmState.messages" :key="index" class="bg-pink-50 rounded-lg p-2 text-sm">
+                                <p class="text-gray-600"><span class="font-medium">{{ msg.from }}</span> 说：</p>
+                                <p class="text-gray-800">{{ msg.content }}</p>
+                                <p class="text-xs text-gray-400 mt-1">{{ msg.time }}</p>
+                            </div>
+                            <div v-if="farmState.messages.length === 0" class="text-center text-gray-400 text-sm py-4">
+                                还没有留言，快给TA留言吧~
+                            </div>
+                        </div>
+                        <div v-if="showMessageBoard" class="mt-3 flex space-x-2">
+                            <input 
+                                v-model="newMessage" 
+                                @keyup.enter="sendMessage"
+                                placeholder="写点什么..." 
+                                class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-pink-300 focus:ring-2 focus:ring-pink-200 outline-none"
+                            >
+                            <button @click="sendMessage" class="bg-pink-400 text-white px-3 py-2 rounded-lg hover:bg-pink-500 transition-colors">
+                                发送
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 狗窝系统 -->
+                    <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-4">
+                        <h3 class="font-bold text-gray-700 mb-3">🐕 守护犬</h3>
+                        <div class="text-center">
+                            <div :class="{ 'dog-woof': dogBarking }" class="text-4xl mb-2">
+                                {{ dogBarking ? '🐕' : '🐶' }}
+                            </div>
+                            <p class="text-sm text-gray-500">{{ dogBarking ? '汪汪！有情况！' : '正在守护农场...' }}</p>
+                            <div class="mt-2 bg-gray-200 rounded-full h-2">
+                                <div class="bg-yellow-400 h-2 rounded-full transition-all" :style="{ width: dogEnergy + '%' }"></div>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-1">精力: {{ dogEnergy }}%</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 中间：农场主区域 -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6">
+                        <!-- 农场标题 -->
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-bold text-gray-700">🌱 我们的农场</h2>
+                            <div class="flex space-x-2">
+                                <button @click="showSeedBag = true" class="bg-green-400 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-500 transition-colors">
+                                    🎒 种子包
+                                </button>
+                                <button @click="showWarehouse = true" class="bg-yellow-400 text-white px-3 py-1 rounded-lg text-sm hover:bg-yellow-500 transition-colors">
+                                    📦 仓库
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 农场网格 -->
+                        <div class="grid grid-cols-6 gap-2 mb-4">
+                            <div 
+                                v-for="(land, index) in farmState.lands" 
+                                :key="index"
+                                @click="handleLandClick(index)"
+                                :class="[
+                                    'land-cell aspect-square rounded-xl flex flex-col items-center justify-center relative',
+                                    land.state === 'locked' ? 'bg-earth text-white land-locked' : '',
+                                    land.state === 'empty' ? 'bg-earthLight' : '',
+                                    land.state === 'planted' ? 'bg-green-200' : '',
+                                    land.state === 'ready' ? 'bg-yellow-200 animate-bounce-slow' : ''
+                                ]"
+                            >
+                                <!-- 未开垦 -->
+                                <template v-if="land.state === 'locked'">
+                                    <span class="text-2xl">🌿</span>
+                                    <span class="text-xs mt-1">未开垦</span>
+                                </template>
+                                
+                                <!-- 空地 -->
+                                <template v-else-if="land.state === 'empty'">
+                                    <span class="text-2xl">🟫</span>
+                                    <span class="text-xs mt-1">空地</span>
+                                </template>
+                                
+                                <!-- 种植中 -->
+                                <template v-else-if="land.state === 'planted'">
+                                    <span :class="'crop-stage-' + land.growthStage" class="text-2xl">
+                                        {{ getCropEmoji(land.cropType, land.growthStage) }}
+                                    </span>
+                                    <span class="text-xs mt-1">{{ land.cropName }}</span>
+                                    <span class="text-xs text-gray-500">{{ land.growthStage + 1 }}/4</span>
+                                    
+                                    <!-- 浇水/除虫进度 -->
+                                    <div v-if="land.waterProgress < 100 || land.pestCount > 0" class="absolute bottom-1 left-1 right-1">
+                                        <div v-if="land.waterProgress < 100" class="bg-blue-200 rounded-full h-1 mb-1">
+                                            <div class="bg-blue-500 h-1 rounded-full transition-all" :style="{ width: land.waterProgress + '%' }"></div>
+                                        </div>
+                                        <span v-if="land.pestCount > 0" class="text-xs">🐛×{{ land.pestCount }}</span>
+                                    </div>
+                                </template>
+                                
+                                <!-- 可收获 -->
+                                <template v-else-if="land.state === 'ready'">
+                                    <span class="text-3xl">🌾</span>
+                                    <span class="text-xs mt-1 font-bold text-yellow-600">可收获</span>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- 操作提示 -->
+                        <div class="bg-blue-50 rounded-xl p-3 text-sm text-blue-700">
+                            <p>💡 提示：点击空地可以种植作物，需要双方共同确认哦~</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧：操作面板 -->
+                <div class="lg:col-span-1 space-y-4">
+                    <!-- 快捷操作 -->
+                    <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-4">
+                        <h3 class="font-bold text-gray-700 mb-3">⚡ 快捷操作</h3>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button @click="showWaterDialog = true" class="bg-blue-100 text-blue-600 py-2 rounded-lg hover:bg-blue-200 transition-colors">
+                                💧 浇水
+                            </button>
+                            <button @click="showPestDialog = true" class="bg-red-100 text-red-600 py-2 rounded-lg hover:bg-red-200 transition-colors">
+                                🐛 除虫
+                            </button>
+                            <button @click="showHarvestDialog = true" class="bg-yellow-100 text-yellow-600 py-2 rounded-lg hover:bg-yellow-200 transition-colors">
+                                🌾 收获
+                            </button>
+                            <button @click="showShop = true" class="bg-purple-100 text-purple-600 py-2 rounded-lg hover:bg-purple-200 transition-colors">
+                                🏪 商店
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 成就展示 -->
+                    <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-4">
+                        <h3 class="font-bold text-gray-700 mb-3">🏆 成就</h3>
+                        <div class="space-y-2">
+                            <div v-for="achievement in farmState.achievements" :key="achievement.id" class="flex items-center space-x-2 bg-gradient-to-r from-yellow-50 to-orange-50 p-2 rounded-lg">
+                                <span class="text-xl">{{ achievement.icon }}</span>
+                                <div>
+                                    <p class="font-medium text-sm">{{ achievement.name }}</p>
+                                    <p class="text-xs text-gray-500">{{ achievement.desc }}</p>
+                                </div>
+                            </div>
+                            <div v-if="farmState.achievements.length === 0" class="text-center text-gray-400 text-sm py-4">
+                                还没有成就，继续努力吧~
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 弹窗：爱的契约 -->
+        <div v-if="showLoveContract" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
+            <div class="love-contract p-6 max-w-md w-full animate-grow">
+                <div class="text-center mb-4">
+                    <span class="text-4xl">❤️</span>
+                    <h3 class="text-xl font-bold text-pink-600 mt-2">爱的契约</h3>
+                </div>
+                <p class="text-gray-600 text-center mb-4">
+                    种植 <span class="font-bold text-pink-500">{{ selectedCrop?.name }}</span> 需要双方共同确认<br>
+                    是否愿意与伴侣一起种下这颗种子？
+                </p>
+                <div class="flex space-x-3">
+                    <button @click="confirmPlant" class="flex-1 bg-pink-400 text-white py-2 rounded-xl hover:bg-pink-500 transition-colors">
+                        ❤️ 我愿意
+                    </button>
+                    <button @click="cancelPlant" class="flex-1 bg-gray-200 text-gray-600 py-2 rounded-xl hover:bg-gray-300 transition-colors">
+                        再想想
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 弹窗：种子包 -->
+        <div v-if="showSeedBag" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full animate-grow">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-gray-700">🎒 种子包</h3>
+                    <button @click="showSeedBag = false" class="text-gray-400 hover:text-gray-600">✕</button>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div 
+                        v-for="seed in seedBag" 
+                        :key="seed.id"
+                        @click="selectSeed(seed)"
+                        class="bg-green-50 rounded-xl p-3 text-center cursor-pointer hover:bg-green-100 transition-colors"
+                    >
+                        <span class="text-2xl">{{ seed.emoji }}</span>
+                        <p class="text-sm font-medium mt-1">{{ seed.name }}</p>
+                        <p class="text-xs text-gray-500">×{{ seed.count }}</p>
+                    </div>
+                </div>
+                <div v-if="seedBag.length === 0" class="text-center text-gray-400 py-8">
+                    种子包空空如也，快去商店购买吧~
+                </div>
+            </div>
+        </div>
+
+        <!-- 弹窗：仓库 -->
+        <div v-if="showWarehouse" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full animate-grow">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-gray-700">📦 仓库</h3>
+                    <button @click="showWarehouse = false" class="text-gray-400 hover:text-gray-600">✕</button>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div 
+                        v-for="(count, cropId) in farmState.warehouse" 
+                        :key="cropId"
+                        class="bg-yellow-50 rounded-xl p-3 text-center"
+                    >
+                        <span class="text-2xl">{{ getCropEmoji(parseInt(cropId), 3) }}</span>
+                        <p class="text-sm font-medium mt-1">{{ getCropName(parseInt(cropId)) }}</p>
+                        <p class="text-xs text-gray-500">×{{ count }}</p>
+                    </div>
+                </div>
+                <div v-if="Object.values(farmState.warehouse).every(v => v === 0)" class="text-center text-gray-400 py-8">
+                    仓库空空如也，快去收获作物吧~
+                </div>
+            </div>
+        </div>
+
+        <!-- 弹窗：商店 -->
+        <div v-if="showShop" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full animate-grow">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-gray-700">🏪 种子商店</h3>
+                    <button @click="showShop = false" class="text-gray-400 hover:text-gray-600">✕</button>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div 
+                        v-for="seed in shopSeeds" 
+                        :key="seed.id"
+                        @click="buySeed(seed)"
+                        class="bg-purple-50 rounded-xl p-3 text-center cursor-pointer hover:bg-purple-100 transition-colors"
+                    >
+                        <span class="text-2xl">{{ seed.emoji }}</span>
+                        <p class="text-sm font-medium mt-1">{{ seed.name }}</p>
+                        <p class="text-xs text-yellow-600">💰 {{ seed.price }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 弹窗：种植请求通知 -->
+        <div v-if="showPlantRequest" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full animate-grow">
+                <div class="text-center mb-4">
+                    <span class="text-4xl">🌱</span>
+                    <h3 class="text-xl font-bold text-green-600 mt-2">种植请求</h3>
+                </div>
+                <p class="text-gray-600 text-center mb-4">
+                    亲爱的，<span class="font-bold text-green-500">{{ plantRequestFrom }}</span> 在等你一起种菜~<br>
+                    是否同意一起种植？
+                </p>
+                <div class="flex space-x-3">
+                    <button @click="acceptPlantRequest" class="flex-1 bg-green-400 text-white py-2 rounded-xl hover:bg-green-500 transition-colors">
+                        ✅ 同意
+                    </button>
+                    <button @click="rejectPlantRequest" class="flex-1 bg-gray-200 text-gray-600 py-2 rounded-xl hover:bg-gray-300 transition-colors">
+                        拒绝
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 弹窗：偷菜警告 -->
+        <div v-if="showStealWarning" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
+            <div class="bg-red-50 border-2 border-red-300 rounded-2xl shadow-xl p-6 max-w-md w-full animate-grow">
+                <div class="text-center mb-4">
+                    <span class="text-4xl">🚨</span>
+                    <h3 class="text-xl font-bold text-red-600 mt-2">偷菜警告！</h3>
+                </div>
+                <p class="text-gray-600 text-center mb-4">
+                    你试图独自收获作物！<br>
+                    根据规则，你只能获得 <span class="font-bold text-red-500">20%</span> 的收益<br>
+                    剩余 80% 已被系统没收<br>
+                    <span class="text-sm text-gray-500">（下次记得和伴侣一起收获哦~）</span>
+                </p>
+                <button @click="showStealWarning = false" class="w-full bg-red-400 text-white py-2 rounded-xl hover:bg-red-500 transition-colors">
+                    知道了
+                </button>
+            </div>
+        </div>
+
+        <!-- 通知列表 -->
+        <div class="fixed top-20 right-4 z-50 space-y-2">
+            <div 
+                v-for="(notification, index) in notifications" 
+                :key="index"
+                class="notification-toast bg-white rounded-xl shadow-lg p-3 max-w-xs"
+            >
+                <p class="text-sm text-gray-700">{{ notification }}</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/js/effects.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        // 作物配置
+        const CROPS = {
+            1: { id: 1, name: '萝卜', emoji: '🥕', price: 10, sellPrice: 20, growTime: 60 },
+            2: { id: 2, name: '番茄', emoji: '🍅', price: 15, sellPrice: 30, growTime: 90 },
+            3: { id: 3, name: '玉米', emoji: '🌽', price: 20, sellPrice: 40, growTime: 120 },
+            4: { id: 4, name: '草莓', emoji: '🍓', price: 25, sellPrice: 50, growTime: 150 },
+            5: { id: 5, name: '西瓜', emoji: '🍉', price: 30, sellPrice: 60, growTime: 180 },
+            6: { id: 6, name: '向日葵', emoji: '🌻', price: 35, sellPrice: 70, growTime: 210 }
+        };
+
+        // 作物成长阶段表情
+        const CROP_STAGES = {
+            0: '🌱', // 种子
+            1: '🌿', // 发芽
+            2: '🌸', // 开花
+            3: '🌾'  // 成熟
+        };
+
+        createApp({
+            data() {
+                return {
+                    currentUser: '小可爱',
+                    partnerName: '大笨蛋',
+                    partnerOnline: true,
+                    
+                    farmState: {
+                        coins: 100,
+                        lands: [],
+                        warehouse: {},
+                        messages: [],
+                        achievements: [],
+                        consecutiveDays: 1,
+                        bothConfirmed: false
+                    },
+                    
+                    selectedLandIndex: -1,
+                    selectedCrop: null,
+                    selectedSeed: null,
+                    
+                    showLoveContract: false,
+                    showSeedBag: false,
+                    showWarehouse: false,
+                    showShop: false,
+                    showWaterDialog: false,
+                    showPestDialog: false,
+                    showHarvestDialog: false,
+                    showMessageBoard: true,
+                    showPlantRequest: false,
+                    showStealWarning: false,
+                    
+                    plantRequestFrom: '',
+                    plantRequestData: null,
+                    
+                    newMessage: '',
+                    dogEnergy: 100,
+                    dogBarking: false,
+                    
+                    notifications: [],
+                    
+                    seedBag: [],
+                    shopSeeds: Object.values(CROPS)
+                };
+            },
+            created() {
+                this.initFarm();
+                this.loadFarmState();
+                this.startGrowthTimer();
+            },
+            methods: {
+                goBack() {
+                    window.location.href = 'home.html';
+                },
+                
+                initFarm() {
+                    // 初始化 6x6 土地
+                    this.farmState.lands = [];
+                    for (let i = 0; i < 36; i++) {
+                        this.farmState.lands.push({
+                            index: i,
+                            state: i < 6 ? 'empty' : 'locked', // 前6块已开垦
+                            cropType: null,
+                            cropName: '',
+                            growthStage: 0,
+                            growthProgress: 0,
+                            waterProgress: 0,
+                            pestCount: 0,
+                            plantedBy: null,
+                            confirmedBy: []
+                        });
+                    }
+                    
+                    // 初始化仓库
+                    Object.keys(CROPS).forEach(id => {
+                        this.farmState.warehouse[id] = 0;
+                    });
+                    
+                    // 初始化种子包
+                    this.seedBag = [
+                        { id: 1, name: '萝卜', emoji: '🥕', count: 5 },
+                        { id: 2, name: '番茄', emoji: '🍅', count: 3 }
+                    ];
+                },
+                
+                loadFarmState() {
+                    const saved = localStorage.getItem('coupleFarmState');
+                    if (saved) {
+                        try {
+                            const state = JSON.parse(saved);
+                            this.farmState = { ...this.farmState, ...state };
+                        } catch (e) {
+                            console.error('加载农场状态失败:', e);
+                        }
+                    }
+                },
+                
+                saveFarmState() {
+                    localStorage.setItem('coupleFarmState', JSON.stringify(this.farmState));
+                },
+                
+                handleLandClick(index) {
+                    const land = this.farmState.lands[index];
+                    
+                    if (land.state === 'locked') {
+                        // 开垦土地
+                        if (this.farmState.coins >= 50) {
+                            this.farmState.coins -= 50;
+                            land.state = 'empty';
+                            this.addNotification('🎉 土地开垦成功！');
+                            this.saveFarmState();
+                        } else {
+                            this.addNotification('💰 金币不足，需要 50 金币');
+                        }
+                    } else if (land.state === 'empty') {
+                        // 选择种子
+                        this.selectedLandIndex = index;
+                        this.showSeedBag = true;
+                    } else if (land.state === 'planted') {
+                        // 查看作物状态
+                        this.addNotification(`${land.cropName} - 成长阶段: ${land.growthStage + 1}/4`);
+                    } else if (land.state === 'ready') {
+                        // 收获作物
+                        this.harvestCrop(index);
+                    }
+                },
+                
+                selectSeed(seed) {
+                    this.selectedSeed = seed;
+                    this.showSeedBag = false;
+                    
+                    // 检查是否双方都确认
+                    if (this.partnerOnline) {
+                        this.selectedCrop = CROPS[seed.id];
+                        this.showLoveContract = true;
+                    } else {
+                        // 对方不在线，发送种植请求
+                        this.plantRequestFrom = this.currentUser;
+                        this.plantRequestData = { landIndex: this.selectedLandIndex, seed: seed };
+                        this.addNotification('📩 已发送种植请求，等待伴侣确认~');
+                        this.saveFarmState();
+                    }
+                },
+                
+                confirmPlant() {
+                    if (!this.selectedSeed || this.selectedLandIndex === -1) return;
+                    
+                    const land = this.farmState.lands[this.selectedLandIndex];
+                    const crop = CROPS[this.selectedSeed.id];
+                    
+                    // 扣除种子
+                    const seedIndex = this.seedBag.findIndex(s => s.id === this.selectedSeed.id);
+                    if (seedIndex !== -1) {
+                        this.seedBag[seedIndex].count--;
+                        if (this.seedBag[seedIndex].count <= 0) {
+                            this.seedBag.splice(seedIndex, 1);
+                        }
+                    }
+                    
+                    // 种植作物
+                    land.state = 'planted';
+                    land.cropType = crop.id;
+                    land.cropName = crop.name;
+                    land.growthStage = 0;
+                    land.growthProgress = 0;
+                    land.waterProgress = 0;
+                    land.pestCount = Math.floor(Math.random() * 5);
+                    land.plantedBy = this.currentUser;
+                    land.confirmedBy = [this.currentUser, this.partnerName];
+                    
+                    this.showLoveContract = false;
+                    this.addNotification('❤️ 爱的契约已签订，种子种下啦！');
+                    this.saveFarmState();
+                    
+                    this.selectedSeed = null;
+                    this.selectedLandIndex = -1;
+                },
+                
+                cancelPlant() {
+                    this.showLoveContract = false;
+                    this.addNotification('种植已取消');
+                },
+                
+                acceptPlantRequest() {
+                    if (this.plantRequestData) {
+                        const { landIndex, seed } = this.plantRequestData;
+                        this.selectedLandIndex = landIndex;
+                        this.selectedSeed = seed;
+                        this.confirmPlant();
+                    }
+                    this.showPlantRequest = false;
+                    this.plantRequestData = null;
+                },
+                
+                rejectPlantRequest() {
+                    this.showPlantRequest = false;
+                    this.plantRequestData = null;
+                    this.addNotification('种植请求已拒绝');
+                },
+                
+                harvestCrop(index) {
+                    const land = this.farmState.lands[index];
+                    
+                    // 检查是否双方都确认收获
+                    const isBothConfirmed = this.partnerOnline && land.confirmedBy.includes(this.partnerName);
+                    
+                    if (!isBothConfirmed) {
+                        // 偷菜惩罚
+                        this.showStealWarning = true;
+                        const crop = CROPS[land.cropType];
+                        const stealCoins = Math.floor(crop.sellPrice * 0.2);
+                        this.farmState.coins += stealCoins;
+                        this.addNotification(`🚨 偷菜！只获得 ${stealCoins} 金币（20%）`);
+                    } else {
+                        // 正常收获
+                        const crop = CROPS[land.cropType];
+                        this.farmState.coins += crop.sellPrice;
+                        this.farmState.warehouse[land.cropType] = (this.farmState.warehouse[land.cropType] || 0) + 1;
+                        this.addNotification(`🎉 收获 ${crop.name}！获得 ${crop.sellPrice} 金币`);
+                    }
+                    
+                    // 重置土地
+                    land.state = 'empty';
+                    land.cropType = null;
+                    land.cropName = '';
+                    land.growthStage = 0;
+                    land.growthProgress = 0;
+                    land.waterProgress = 0;
+                    land.pestCount = 0;
+                    land.confirmedBy = [];
+                    
+                    this.saveFarmState();
+                },
+                
+                buySeed(seed) {
+                    if (this.farmState.coins >= seed.price) {
+                        this.farmState.coins -= seed.price;
+                        
+                        const existing = this.seedBag.find(s => s.id === seed.id);
+                        if (existing) {
+                            existing.count++;
+                        } else {
+                            this.seedBag.push({ ...seed, count: 1 });
+                        }
+                        
+                        this.addNotification(`🛒 购买 ${seed.name} 成功！`);
+                        this.saveFarmState();
+                    } else {
+                        this.addNotification('💰 金币不足！');
+                    }
+                },
+                
+                sendMessage() {
+                    if (!this.newMessage.trim()) return;
+                    
+                    this.farmState.messages.push({
+                        from: this.currentUser,
+                        content: this.newMessage,
+                        time: new Date().toLocaleTimeString()
+                    });
+                    
+                    this.newMessage = '';
+                    this.saveFarmState();
+                    this.addNotification('📝 留言发送成功！');
+                },
+                
+                addNotification(message) {
+                    this.notifications.push(message);
+                    setTimeout(() => {
+                        this.notifications.shift();
+                    }, 3000);
+                },
+                
+                getCropEmoji(cropId, stage) {
+                    if (!cropId) return '🌱';
+                    const crop = CROPS[cropId];
+                    return crop ? crop.emoji : '🌱';
+                },
+                
+                getCropName(cropId) {
+                    const crop = CROPS[cropId];
+                    return crop ? crop.name : '未知';
+                },
+                
+                startGrowthTimer() {
+                    setInterval(() => {
+                        this.farmState.lands.forEach(land => {
+                            if (land.state === 'planted') {
+                                const crop = CROPS[land.cropType];
+                                if (crop) {
+                                    land.growthProgress += 100 / (crop.growTime / 10);
+                                    
+                                    if (land.growthProgress >= 100 && land.growthStage < 3) {
+                                        land.growthStage++;
+                                        land.growthProgress = 0;
+                                        
+                                        if (land.growthStage === 3) {
+                                            land.state = 'ready';
+                                            this.addNotification(`🌾 ${land.cropName} 成熟啦！`);
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        this.saveFarmState();
+                    }, 10000); // 每10秒更新一次
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
