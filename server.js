@@ -315,14 +315,14 @@ app.post('/api/user', authenticateToken, upload.single('avatar'), (req, res) => 
         }
         
         const newNickname = nickname || user.nickname;
-        const newAge = age !== undefined ? age : user.age;
+        const newAge = age !== undefined && age !== '' ? age : user.age;
         const newProvince = province !== undefined ? province : user.province;
         const newCity = city !== undefined ? city : user.city;
         const newBio = bio !== undefined ? bio : user.bio;
         
         db.run(
             'UPDATE users SET nickname = ?, age = ?, province = ?, city = ?, bio = ?, avatar = ? WHERE id = ?',
-            [newNickname, newAge || null, newProvince, newCity, newBio, avatar, userId],
+            [newNickname, newAge, newProvince, newCity, newBio, avatar, userId],
             (err) => {
                 if (err) {
                     console.error('更新用户失败:', err);
