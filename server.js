@@ -815,4 +815,37 @@ app.get('/api/pet/partner', authenticateToken, (req, res) => {
 // 启动服务器
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
+
+
+// 版本检测接口
+app.get('/api/version', (req, res) => {
+    fs.readFile(path.join(__dirname, 'version.json'), 'utf8', (err, data) => {
+        if (err) {
+            return res.json({ version: '1.0.0', changelog: '未知', updateTime: new Date().toISOString() });
+        }
+        try {
+            const versionInfo = JSON.parse(data);
+            res.json(versionInfo);
+        } catch (e) {
+            res.json({ version: '1.0.0', changelog: '未知', updateTime: new Date().toISOString() });
+        }
+    });
+});
+
+// 自动更新接口
+app.post('/api/update', (req, res) => {
+    const { secret } = req.body;
+    
+    if (secret !== 'love-space-update-secret-2024') {
+        return res.status(403).json({ error: '未授权' });
+    }
+    
+    const { exec } = require('child_process');
+    exec('cd /opt/love-space && ./update.sh', (error, stdout, stderr) => {
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+        res.json({ success: true, output: stdout, error: stderr });
+    });
+});
 });
