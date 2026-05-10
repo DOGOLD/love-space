@@ -28,4 +28,14 @@ if [ -d "$latest_uploads" ]; then
     echo "上传文件已恢复"
 fi
 
+# 修复文件权限（重要！）
+echo "修复文件权限..."
+chmod 666 /opt/love-space/data/database.sqlite
+chmod 777 /opt/love-space/data
+chmod 755 /opt/love-space/uploads
+
+# 重启服务
+echo "重启服务..."
+systemctl restart love-space 2>/dev/null || true
+
 echo "更新完成！请刷新页面"
